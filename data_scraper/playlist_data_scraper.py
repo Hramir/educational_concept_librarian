@@ -1,4 +1,6 @@
 
+from youtubesearchpython import Playlist
+
 def video_ids_from_playlist(playlist_id):
     """
     playlist_id: str
@@ -7,7 +9,11 @@ def video_ids_from_playlist(playlist_id):
     Returns: list of str
         A list of the IDs of the videos in this playlist, in viewing order.
     """
-    pass
+    
+    # Loads the playlist videos
+    videos = Playlist(f"https://www.youtube.com/playlist?list={playlist_id}").videos
+
+    return [video["id"] for video in videos]
         
 
 def video_metadata_from_id(video_id):
