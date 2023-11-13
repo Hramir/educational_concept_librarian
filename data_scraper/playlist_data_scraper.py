@@ -61,10 +61,16 @@ def video_transcript_from_id(video_id):
         May include strings that are not English words (e.g., mathematical expressions).
         Words are split wherever a whitespace character appears in the YouTube transcript.
         Punctuation used is still kept in the word string.
+
+        If the video lacks a transcript, a one-element list ["NO TRANSCRIPT AVAILABLE"]
+        is returned instead.
     """
     
     # Downloads the transcript data
-    transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=("en", "en-US"))
+    try:
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=("en", "en-US"))
+    except:
+        return ["NO TRANSCRIPT AVAILABLE"]
 
     # Stores each individual word in the transcript
     words = []
