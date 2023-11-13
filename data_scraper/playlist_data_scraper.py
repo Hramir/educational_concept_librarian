@@ -1,5 +1,5 @@
 
-from youtubesearchpython import Playlist
+from youtubesearchpython import Playlist, Video
 
 def video_ids_from_playlist(playlist_id):
     """
@@ -36,7 +36,16 @@ def video_metadata_from_id(video_id):
             views: The number of views the video has
             channel: The ID of the channel that posted the video
     """
-    pass
+
+    # Loads the video metadata
+    video_info = Video.getInfo(video_id)
+
+    return {
+        "id": video_info["id"],
+        "duration": video_info["duration"]["secondsText"],
+        "views": video_info["viewCount"]["text"],
+        "channel": video_info["channel"]["id"],
+    }
 
 
 def video_transcript_from_id(video_id):
