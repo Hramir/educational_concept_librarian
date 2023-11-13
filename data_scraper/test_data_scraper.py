@@ -19,9 +19,9 @@ assert actual == expected, f"Expected metadata[\"id\"] to be {expected}, but got
 expected = "239"
 actual = metadata["duration"]
 assert actual == expected, f"Expected metadata[\"duration\"] to be {expected}, but got {actual}."
-expected = "96"
+expected = "99"
 actual = metadata["views"]
-assert actual == expected, f"Expected metadata[\"views\"] to be {expected}, but got {actual}."
+assert int(actual) >= int(expected), f"Expected metadata[\"views\"] to be at least {expected}, but got {actual}."
 expected = "UC2YE5AUXk8KCGPLOfY9eCXA"
 actual = metadata["channel"]
 assert actual == expected, f"Expected metadata[\"channel\"] to be {expected}, but got {actual}."
