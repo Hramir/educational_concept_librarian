@@ -74,7 +74,7 @@ def video_transcript_from_id(video_id):
     return words
 
 
-def store_playlist_videos_metadata(playlist_id, path_str):
+def store_playlist_videos_metadata(playlist_id, local_path_str=""):
     """
     Stores the metadata (including transcript) from each video in the given playlist
     at the path provided in a text file named:
@@ -96,7 +96,30 @@ def store_playlist_videos_metadata(playlist_id, path_str):
 
     playlist_id: str
         The ID of the playlist from whom the videos' metadata will be stored.
-    path_str: str
-        The path string to the path at which the metadata files will be saved.
+    local_path_str: str
+        The local path to the directory at which the files will be stored
+        (without "/" at the end), or "" if the root directory.
     """
-    pass
+
+    # Checks correctness of path
+    if (len(local_path_str) > 0 and local_path_str[-1] == "/"):
+        local_path_str = local_path_str[:-1]
+
+    # Runs through each video in the playlist
+    for index, video_id in enumerate(video_ids_from_playlist(playlist_id)):
+
+        # Stores the info from the video
+        metadata = video_metadata_from_id(video_id)
+        transcript = video_transcript_from_id(video_id)
+
+        # Writes the video data as specified
+        with open(f"{local_path_str}{('/' if local_path_str!='' else '')}{playlist_id} {index}.txt", "w") as file:
+
+            # Stores the non-transcript metadata
+            for tag in ["id", "duration", "views", "channel"]:
+                file.write(metadata[tag] + "\n")
+
+            # Stores the video's transcribed words
+            for word in transcript:
+                file.write(word + "\n")
+        
