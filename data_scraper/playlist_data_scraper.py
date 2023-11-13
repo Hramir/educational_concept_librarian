@@ -1,4 +1,3 @@
-
 from youtubesearchpython import Playlist, Video
 from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -78,11 +77,22 @@ def video_transcript_from_id(video_id):
 def store_playlist_videos_metadata(playlist_id, path_str):
     """
     Stores the metadata (including transcript) from each video in the given playlist
-    at the path provided.
+    at the path provided in a text file named:
+        "[PLAYLIST_ID] [INDEX OF VIDEO IN PLAYLIST].txt".
 
     Below is the format of each video metadata file:
 
-    TODO: Fill out structure of video file
+    Line 1: Video ID
+    Line 2: Video duration in seconds
+    Line 3: The number of views the video has as of downloading the data
+    Line 4: Channel ID
+
+    Lines 5+: The words (split as in video_transcript_from_id) from the video's
+    transcript, each on its own line.
+
+    The number of lines from the beginning of the file to the point at which the
+    transcribed words begin is equal to the number of keys in the dictionary returned by
+    the video_metadata_from_id function.
 
     playlist_id: str
         The ID of the playlist from whom the videos' metadata will be stored.
