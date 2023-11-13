@@ -1,5 +1,6 @@
 
 from youtubesearchpython import Playlist, Video
+from youtube_transcript_api import YouTubeTranscriptApi
 
 def video_ids_from_playlist(playlist_id):
     """
@@ -56,10 +57,22 @@ def video_transcript_from_id(video_id):
     video_id: str
         The ID of the video whose transcript will be downloaded.
 
-    Returns: str
-        The transcribed text from the video.
+    Returns: list of str
+        The words of the video's transcribed text, in the order they were transcribed.
+        May include strings that are not English words (e.g., mathematical expressions).
+        Words are split wherever a whitespace character appears in the YouTube transcript.
+        Punctuation used is still kept in the word string.
     """
-    pass
+    
+    # Downloads the transcript data
+    transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=("en", "en-US"))
+
+    # Stores each individual word in the transcript
+    words = []
+    for line in transcript:
+        words += line["text"].split()
+
+    return words
 
 
 def store_playlist_videos_metadata(playlist_id, path_str):
