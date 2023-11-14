@@ -7,13 +7,25 @@ def video_ids_from_playlist(playlist_id):
         The ID of the playlist from whom the video IDs will be extracted.
 
     Returns: list of str
-        A list of the IDs of the videos in this playlist, in viewing order.
+        A list of the IDs of all videos in this playlist, in viewing order.
     """
     
     # Loads the playlist videos
-    videos = Playlist(f"https://www.youtube.com/playlist?list={playlist_id}").videos
+    playlist = Playlist(f"https://www.youtube.com/playlist?list={playlist_id}")
 
-    return [video["id"] for video in videos]
+    # Stores all videos' IDs
+    video_ids = []
+    while True:
+        video_ids += [video["id"] for video in playlist.videos]
+
+        # Exits when there are no more videos left
+        if not playlist.hasMoreVideos:
+            break
+            
+        # Gets next videos
+        playlist.getNextVideos()
+
+    return video_ids
         
 
 def video_metadata_from_id(video_id):
@@ -70,6 +82,7 @@ def video_transcript_from_id(video_id):
     try:
         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=("en", "en-US"))
     except:
+        print("No transcript found for", video_id)
         return ["NO TRANSCRIPT AVAILABLE"]
 
     # Stores each individual word in the transcript
