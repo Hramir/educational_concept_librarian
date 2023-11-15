@@ -1,2 +1,9 @@
 data/
 *__pycache__*
+
+*.model
+*.npy
+*.id2word
+*.state
+*.dict
+*.csv

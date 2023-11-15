@@ -26,7 +26,7 @@ def preprocess(text):
     normalized = " ".join(lemma.lemmatize(word) for word in punc_free.split())
     return normalized
 
-def perform_lda(dataframe):
+def perform_lda(dataframe, num_topics=10):
     # Preprocessing the transcript data
     doc_clean = [preprocess(doc).split() for doc in dataframe['transcript']]  
 
@@ -37,9 +37,13 @@ def perform_lda(dataframe):
     doc_term_matrix = [dictionary.doc2bow(doc) for doc in doc_clean]
 
     # Creating the LDA model
-    lda_model = models.LdaModel(doc_term_matrix, num_topics=10, id2word=dictionary, passes=50)
+    lda_model = models.LdaModel(doc_term_matrix, num_topics=num_topics, id2word=dictionary, passes=50)
 
-    return lda_model
+    return lda_model, dictionary
+
+
+## HYPERPARAMETERS
+num_topics = 10
 
 # Load the data
 directory_path = 'data'
@@ -49,10 +53,42 @@ print(df.head())
 print("----------------------------------")
 
 # Performing LDA
-lda_model = perform_lda(df)
+lda_model, term_dict = perform_lda(df, num_topics=num_topics)
 
 # Display the topics
 print("Top words associated with each topic:")
 topics = lda_model.print_topics(num_topics=10, num_words=5)
 for topic in topics:
     print(topic)
+
+#### We've trained our LDA model. Now, let's get the topic distributions for each video transcript ####
+
+for i in range(num_topics):
+    df[f'Topic_{i}'] = 0.0
+
+# Function to get the topic distribution for a document
+def get_topic_distribution(lda_model, bow):
+    topic_distribution = lda_model.get_document_topics(bow, minimum_probability=0)
+    return dict(topic_distribution)
+
+# Updating the DataFrame with topic weightings
+for idx, row in df.iterrows():
+    # Preprocess the transcript
+    processed_transcript = preprocess(row['transcript'])
+    bow = term_dict.doc2bow(processed_transcript.split())
+
+    # Get the topic distribution
+    topic_dist = get_topic_distribution(lda_model, bow)
+
+    # Update the DataFrame with topic weights
+    for topic_id, weight in topic_dist.items():
+        df.at[idx, f'Topic_{topic_id}'] = weight
+
+# Now df has additional columns for each topic's weighting
+print("DataFrame with topic weightings:")
+print(df.head())
+
+# Save the csv with topic distributions, the LDA model, and the term dictionary: 
+df.to_csv("video_transcripts_with_topics.csv", index=False)
+lda_model.save('lda_model.model')
+term_dict.save('term_dict.dict')
