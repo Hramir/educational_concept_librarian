@@ -64,7 +64,7 @@ for topic in topics:
 #### We've trained our LDA model. Now, let's get the topic distributions for each video transcript ####
 
 for i in range(num_topics):
-    df[f'Topic_{i}'] = 0.0
+    df[f'topic_{i}'] = 0.0
 
 # Function to get the topic distribution for a document
 def get_topic_distribution(lda_model, bow):
@@ -82,7 +82,7 @@ for idx, row in df.iterrows():
 
     # Update the DataFrame with topic weights
     for topic_id, weight in topic_dist.items():
-        df.at[idx, f'Topic_{topic_id}'] = weight
+        df.at[idx, f'topic_{topic_id}'] = weight
 
 # Now df has additional columns for each topic's weighting
 print("DataFrame with topic weightings:")
