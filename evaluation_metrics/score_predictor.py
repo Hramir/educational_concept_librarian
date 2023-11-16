@@ -1,4 +1,4 @@
-# from nn_regressor import Neural_Network_Regressor
+# from evaluation_metrics.nn_regressor import Neural_Network_Regressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import TruncatedSVD, PCA, NMF
 from sklearn.manifold import TSNE, Isomap
@@ -8,32 +8,32 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
-import torch
+# import torch # TODO: Import torch if will be using Feed-Forward Neural Network 
 import numpy as np 
-import networkx as nx
 from typing import List
 from typing import Tuple    
-import time
 from tqdm import tqdm
 import numpy as np
-import os 
-import pickle
-
+import os
+import pandas as pd
 BAR_WIDTH = 0.35
-NUM_FEATURES = 128 # TODO: Change to actual number of features depending on model feature dimensions
+NUM_FEATURES = 10 # TODO: Change to actual number of features depending on model feature dimensions
 NUM_FEATURES_WORD2VEC = 64 # TODO: Change to actual number of features depending on model feature dimensions
-
-score_labels = np.load(os.path.join("data_scraper", "score_labels_256.npy"))
+TRANSCRIPT_DATA_PATH = 'video_transcripts_with_topics.csv'
+TOPIC_COLUMNS = ['topic_0', 'topic_1', 'topic_2', 'topic_3', 'topic_4', 'topic_5', 'topic_6', 'topic_7', 'topic_8', 'topic_9']
+TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = 0.70, 0.20, 0.10
+transcript_df = pd.read_csv(TRANSCRIPT_DATA_PATH)
+view_count_labels = transcript_df['view_count']
+score_labels = view_count_labels
 class Regression_Model:
-    def __init__(self, date : str, log_num : str, projection_type: str ="HR", dataset: str ="YouTube"):
-        log_path = os.path.join("logs", "lp", date, log_num)
+    def __init__(self, transcript_source : str, transcript_num : str, projection_type: str ="HR", dataset: str ="YouTube"):
+        log_path = os.path.join("logs", "lp", transcript_source, transcript_num)
         print(f"Using Log Path : {log_path}")
-        self.embeddings_dir = os.path.join(log_path, 'embeddings')
+        
+        self.embeddings_dir = TRANSCRIPT_DATA_PATH
         projection_type = projection_type.replace("-", "").upper()
         self.projection_type = projection_type
-        self.train_indices = self.get_split_indices("train")
-        self.val_indices = self.get_split_indices("val")
-        self.test_indices = self.get_split_indices("test")
+        self.train_indices, self.val_indices, self.test_indices = self.get_dataset_split_indices()
         self.dataset = dataset
         if dataset not in ["YouTube", "MITOCW"]:
             raise ValueError("Dataset must be either YouTube or MITOCW")
@@ -55,7 +55,6 @@ class Regression_Model:
         scaled_embeddings = np_scaled_embeddings.reshape((len(np_scaled_embeddings), self.num_features))
         return scaled_embeddings
     def get_projection_function(self):
-        projection_function = lambda x : x
         if self.projection_type == "HR": 
             
             def inner_product(u, v):
@@ -72,28 +71,45 @@ class Regression_Model:
         elif self.projection_type == "SVD": projection_function = TruncatedSVD(n_components=1).fit_transform
         elif self.projection_type == "PCA": projection_function = PCA(n_components=1).fit_transform
         elif self.projection_type == "ISOMAP": projection_function = Isomap(n_components=1).fit_transform
+        elif self.projection_type == "ID": projection_function = lambda x : x
         else: raise AssertionError(f"Invalid Projection Type : {self.projection_type}!")
         # Other possibilities: MDS, LLE, Laplacian Eigenmaps, etc.
         return projection_function
             
-    def get_split_indices(self, split_str):
-        split_indices = []
-        for split_embeddings_dir in os.listdir(self.embeddings_dir):
-            if split_str not in split_embeddings_dir: continue
-            _, _, split_index_str = split_embeddings_dir.split("_")
-            split_index, _ = split_index_str.split(".")
-            split_index = int(split_index)
-            split_indices.append(split_index)
-        return sorted(split_indices)
+    
+    def get_dataset_split_indices(num_transcripts) -> List[List[int]]:    
+        train_split_indices, val_split_indices, test_split_indices = [], [], []
+        nth_index = 0
+        num_transcripts = len(transcript_df) # TODO: Should be around 372 for now
+        train_num, val_num = int(num_transcripts * TRAIN_SPLIT), int(num_transcripts * VAL_SPLIT)
+        test_num = num_transcripts - train_num - val_num 
+
+        seen = set()
+        lower_bound = num_transcripts * nth_index
+        upper_bound = lower_bound + num_transcripts
+        
+        for split_indices, split_num in zip([train_split_indices, val_split_indices, test_split_indices],
+                                        [train_num, val_num, test_num]):
+            num_indices = 0
+            while num_indices < split_num:
+                index = np.random.randint(lower_bound, upper_bound)
+                if index in seen: continue
+                split_indices.append(index)
+                num_indices += 1
+                seen.add(index)
+        assert not set(train_split_indices).intersection(val_split_indices), "Train and Val Sets should not overlap"
+        assert not set(train_split_indices).intersection(test_split_indices), "Train and Test Sets should not overlap"
+        assert not set(val_split_indices).intersection(test_split_indices), "Val and Test Sets should not overlap"
+        return train_split_indices, val_split_indices, test_split_indices
 
 class Score_Predictor(Regression_Model):
-    def __init__(self, date : str, log_num : str, type_of_regression: str, projection_type: str="HR", architecture: str="FHNN", dataset: str="YouTube", alpha=100):
+    def __init__(self, transcript_source : str, transcript_num : str, type_of_regression: str, projection_type: str="HR", architecture: str="FHNN", dataset: str="YouTube", alpha=100):
         """
         1. Evaluate Regression Model: MSE
         
         2. Visualize Predicted Score vs. Actual Score
         """
-        super().__init__(date, log_num, projection_type, dataset)
+        super().__init__(transcript_source, transcript_num, projection_type, dataset)
         type_of_regression = type_of_regression.lower()
         self.architecture = architecture
         self.dataset = dataset
@@ -137,7 +153,7 @@ class Score_Predictor(Regression_Model):
         self.model_str = "Linear" if type(self.regressor_model) == LinearRegression \
             else "Ridge" if type(self.regressor_model) == Ridge \
             else "Random Forest" if type(self.regressor_model) == RandomForestRegressor \
-            else "Feed-Forward NN" if type(self.regressor_model) == Neural_Network_Regressor \
+            else "Feed-Forward-NN" if type(self.regressor_model) == Neural_Network_Regressor \
             else "Unknown"
         
     def regression(self) -> float:
@@ -163,16 +179,18 @@ class Score_Predictor(Regression_Model):
         if type(self.regressor_model) == RandomForestRegressor:
             plt.bar(x, self.regressor_model.feature_importances_, color=cmap(x / len(x)))
             return 
-        elif type(self.regressor_model) == Neural_Network_Regressor:
-            print(f"Model Parameters : {[tensor.shape for tensor in self.regressor_model.parameters()]}")
-            row_sums = [torch.sum(tensor, dim=0).detach().numpy() for tensor in self.regressor_model.parameters()]
-            print("ROW SUMS : ", row_sums)
-            x = np.arange(len(row_sums[0]))
-            plt.bar(x, row_sums[0], color=cmap(x / len(x)))
-            return
-        
-            # plt.imshow(self.regressor_model.parameters())
-        
+        elif self.model_str == "neural_network":
+            # TODO: Decide if want to use NN regression
+            if type(self.regressor_model) == Neural_Network_Regressor:
+                print(f"Model Parameters : {[tensor.shape for tensor in self.regressor_model.parameters()]}")
+                row_sums = [torch.sum(tensor, dim=0).detach().numpy() for tensor in self.regressor_model.parameters()]
+                print("ROW SUMS : ", row_sums)
+                x = np.arange(len(row_sums[0]))
+                plt.bar(x, row_sums[0], color=cmap(x / len(x)))
+                return
+            
+                # plt.imshow(self.regressor_model.parameters())
+            
         if use_jet:
             plt.bar(x, self.regressor_model.coef_, color=cmap(x / len(x)))
         else:
@@ -191,7 +209,7 @@ class Score_Predictor(Regression_Model):
 
         # Set labels, title, and legend
         plt.xticks(x, self.test_indices, rotation=90, fontsize=6)
-        plt.xlabel('Subject Index')
+        plt.xlabel('transcript Index')
         plt.ylabel('score')
         plt.title(f'{self.model_str} Model with Projection {self.projection_type}')
         plt.legend()
@@ -211,10 +229,10 @@ class Score_Predictor(Regression_Model):
         # Set labels, title, and legend
         plt.xticks(x, self.test_indices, rotation=90, fontsize=6)
         # plt.xticks(x, self.test_indices + self.val_indices, rotation=90, fontsize=6)
-        plt.xlabel('Subject Index')
+        plt.xlabel('transcript Index')
         plt.ylabel('score')
         plt.title(f'{self.model_str} Model with Projection {self.projection_type} Predicted scores')
-        plt.ylim(0, 100)
+        # plt.ylim(0, 100)
         plt.legend()
 
         plt.show()
@@ -227,10 +245,10 @@ class Score_Predictor(Regression_Model):
         y = np.arange(len(predicted_scores))
         plt.scatter(self.test_score_labels, predicted_scores, c='blue', marker='o', label='Actual vs. Predicted')
         
-        plt.xlabel('Subject score')
+        plt.xlabel('transcript score')
         plt.ylabel('Predicted score')
         plt.title(f'{self.model_str} Model with Projection {self.projection_type} Predicted scores')
-        plt.ylim(0, 100)
+        # plt.ylim(0, 100)
         
         # Add a diagonal line for reference (perfect prediction)
         plt.plot([min(self.test_score_labels), max(self.test_score_labels)], [min(self.test_score_labels), max(self.test_score_labels)], linestyle='--', color='gray', label='Perfect Prediction')
@@ -247,7 +265,7 @@ class Score_Predictor(Regression_Model):
         plt.bar(x - BAR_WIDTH/2, predicted_scores - self.test_score_labels, BAR_WIDTH, label='Predicted score - score Label')
         plt.xticks(x, self.test_indices, rotation=90, fontsize=6)
         # ax.set_xticklabels(self.test_indices, rotation=90)
-        plt.xlabel('Subject Index')
+        plt.xlabel('transcript Index')
         plt.ylabel('score')
         plt.title(f'{self.model_str} Model with Projection {self.projection_type} Difference Plot')
         plt.legend()
@@ -262,14 +280,20 @@ class Score_Predictor(Regression_Model):
         Returns Predicted scores, MSE, and Correlation Coefficient between Predicted scores and Actual scores
         """
         
-        test_embeddings_list = []
         val_embeddings_list = []
-        for test_index in self.test_indices:
-            test_embeddings = np.load(os.path.join(self.embeddings_dir, f'embeddings_test_{test_index}.npy'))
-            test_embeddings_list.append(test_embeddings)
+        test_embeddings_list = []
+        
+        topics_df = transcript_df[TOPIC_COLUMNS]
+
+        topics_values = topics_df.values.tolist()
+        topics_arrays = [np.array(row) for row in topics_values]
         for val_index in self.val_indices:
-            val_embeddings = np.load(os.path.join(self.embeddings_dir, f'embeddings_val_{val_index}.npy'))
+            val_embeddings = topics_arrays[val_index]
             val_embeddings_list.append(val_embeddings)
+        for test_index in self.test_indices:
+            test_embeddings = topics_arrays[test_index]            
+            test_embeddings_list.append(test_embeddings)
+        
         
         if type(self.regressor_model) == LinearRegression \
             or type(self.regressor_model) == Ridge \
@@ -281,17 +305,19 @@ class Score_Predictor(Regression_Model):
             scaler = StandardScaler()
             projected_embeddings = scaler.fit_transform(projected_embeddings)
             predicted_scores = self.regressor_model.predict(projected_embeddings)
-        if type(self.regressor_model) == Neural_Network_Regressor:
-            print("Projecting Test Embeddings :")
-            projected_embeddings = self.project_embeddings(test_embeddings_list)
-            print("Scaling Projected Test Embeddings :")
-            scaler = StandardScaler()
-            projected_embeddings = scaler.fit_transform(projected_embeddings)
-            projected_embeddings_tensor = torch.from_numpy(projected_embeddings).clone().detach().to(dtype=torch.float32).squeeze()
-            predicted_scores = self.regressor_model.predict(projected_embeddings_tensor)
+        if self.model_str == "neural_network":
+            # TODO: Decide if want to use NN regression
+            if type(self.regressor_model) == Neural_Network_Regressor:
+                print("Projecting Test Embeddings :")
+                projected_embeddings = self.project_embeddings(test_embeddings_list)
+                print("Scaling Projected Test Embeddings :")
+                scaler = StandardScaler()
+                projected_embeddings = scaler.fit_transform(projected_embeddings)
+                projected_embeddings_tensor = torch.from_numpy(projected_embeddings).clone().detach().to(dtype=torch.float32).squeeze()
+                predicted_scores = self.regressor_model.predict(projected_embeddings_tensor)
 
-            predicted_scores = predicted_scores.squeeze() # Reduce extra dimension from [num_test, 1] to [num_test]
-            predicted_scores = predicted_scores.detach().numpy()
+                predicted_scores = predicted_scores.squeeze() # Reduce extra dimension from [num_test, 1] to [num_test]
+                predicted_scores = predicted_scores.detach().numpy()
         print("score Labels: ", self.test_score_labels)
         print("Predicted scores: ", predicted_scores)
         
@@ -332,14 +358,19 @@ class Score_Predictor(Regression_Model):
         train_embeddings_list = []
         val_embeddings_list = []
         test_embeddings_list = []
+        topics_df = transcript_df[TOPIC_COLUMNS]
+
+        topics_values = topics_df.values.tolist()
+        topics_arrays = [np.array(row) for row in topics_values]
+
         for train_index in self.train_indices:
-            train_embeddings = np.load(os.path.join(self.embeddings_dir, f'embeddings_train_{train_index}.npy'))
+            train_embeddings = topics_arrays[train_index]            
             train_embeddings_list.append(train_embeddings)
         for val_index in self.val_indices:
-            val_embeddings = np.load(os.path.join(self.embeddings_dir, f'embeddings_val_{val_index}.npy'))
+            val_embeddings = topics_arrays[val_index]
             val_embeddings_list.append(val_embeddings)
         for test_index in self.test_indices:
-            test_embeddings = np.load(os.path.join(self.embeddings_dir, f'embeddings_test_{test_index}.npy'))
+            test_embeddings = topics_arrays[test_index]            
             test_embeddings_list.append(test_embeddings)
         
         train_embeddings_list += val_embeddings_list
@@ -358,30 +389,32 @@ class Score_Predictor(Regression_Model):
             # TODO: Change back to train + val
             self.regressor_model.fit(projected_embeddings, self.train_score_labels + self.val_score_labels)
             # self.regressor_model.fit(projected_embeddings, self.train_score_labels + self.val_score_labels + self.test_score_labels)
-        elif type(self.regressor_model == Neural_Network_Regressor):
-            print("Projecting Train Embeddings :")
-            projected_embeddings = self.project_embeddings(train_embeddings_list)
-            print("Scaling Projected Train Embeddings :")
-            scaler = StandardScaler()
-            projected_embeddings = scaler.fit_transform(projected_embeddings)
+        elif self.model_str == "neural_network":
+            # TODO: Decide if want to use NN regression
+            if type(self.regressor_model == Neural_Network_Regressor):
+                print("Projecting Train Embeddings :")
+                projected_embeddings = self.project_embeddings(train_embeddings_list)
+                print("Scaling Projected Train Embeddings :")
+                scaler = StandardScaler()
+                projected_embeddings = scaler.fit_transform(projected_embeddings)
 
-            projected_embeddings_tensor = torch.from_numpy(np.array(projected_embeddings)) \
-                .clone() \
-                .detach() \
-                .to(dtype=torch.float32) \
-                .squeeze()
-            score_labels_tensor = torch.from_numpy(np.array(self.train_score_labels + self.val_score_labels)) \
-                .clone() \
-                .detach() \
-                .to(dtype=torch.float32) \
-                .squeeze()
-            # TODO: Change back to train + val
-            # score_labels_tensor = torch.from_numpy(np.array(self.train_score_labels + self.val_score_labels + self.test_score_labels)) \
-            #     .clone() \
-            #     .detach() \
-            #     .to(dtype=torch.float32) \
-            #     .squeeze()
-            self.regressor_model.train(projected_embeddings_tensor, score_labels_tensor)
+                projected_embeddings_tensor = torch.from_numpy(np.array(projected_embeddings)) \
+                    .clone() \
+                    .detach() \
+                    .to(dtype=torch.float32) \
+                    .squeeze()
+                score_labels_tensor = torch.from_numpy(np.array(self.train_score_labels + self.val_score_labels)) \
+                    .clone() \
+                    .detach() \
+                    .to(dtype=torch.float32) \
+                    .squeeze()
+                # TODO: Change back to train + val
+                # score_labels_tensor = torch.from_numpy(np.array(self.train_score_labels + self.val_score_labels + self.test_score_labels)) \
+                #     .clone() \
+                #     .detach() \
+                #     .to(dtype=torch.float32) \
+                #     .squeeze()
+                self.regressor_model.train(projected_embeddings_tensor, score_labels_tensor)
 
         else: raise AssertionError("Invalid Regression Model!")
 
