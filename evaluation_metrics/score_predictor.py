@@ -56,7 +56,6 @@ class Regression_Model:
         return scaled_embeddings
     def get_projection_function(self):
         if self.projection_type == "HR": 
-            
             def inner_product(u, v):
                 return -u[0]*v[0] + np.dot(u[1:], v[1:]) 
             def get_hyperbolic_radius(embeddings):
@@ -75,7 +74,6 @@ class Regression_Model:
         else: raise AssertionError(f"Invalid Projection Type : {self.projection_type}!")
         # Other possibilities: MDS, LLE, Laplacian Eigenmaps, etc.
         return projection_function
-            
     
     def get_dataset_split_indices(num_transcripts) -> List[List[int]]:    
         train_split_indices, val_split_indices, test_split_indices = [], [], []
@@ -172,7 +170,7 @@ class Score_Predictor(Regression_Model):
         plt.figure()
         plt.title(f"{self.model_str} Model with Projection {self.projection_type} Trained Parameters")
         plt.ylabel('Parameter Value')
-        plt.xlabel('Region Of Interest (ROI) Index')
+        plt.xlabel('Topic Index')
         x = np.arange(self.num_features)
         cmap = plt.cm.jet        
         
