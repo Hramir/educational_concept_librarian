@@ -89,7 +89,7 @@ class Score_Classifier(Regression_Model):
         predicted_score_brackets, accuracy_score = self.test()
         print("Predicted Score Brackets : ", predicted_score_brackets)  
         # if self.model_str == "SVC_Linear": self.visualize_model_parameters(use_jet = False)
-
+        self.visualize_model_parameters(use_jet = False)
         self.plot_accuracy_per_score_bracket(predicted_score_brackets)
         
         
@@ -97,7 +97,6 @@ class Score_Classifier(Regression_Model):
         # self.plot_score_brackets_vs_predicted_scores_brackets_curves(predicted_score_brackets)
         # TODO: Include F1 Score
         print(f"{self.model_str} Model with Projection {self.projection_type} Accuracy Score:", accuracy_score)
-        print("THIS IS THE SCORE", accuracy_score)
         return accuracy_score
     
     def train(self):
@@ -186,6 +185,7 @@ class Score_Classifier(Regression_Model):
         return predicted_score_brackets, accuracy
     def visualize_model_parameters(self, use_jet: bool=False):
         # plt.figure(figsize = (10, 10))
+        if self.model_str == "SVC_RBF" or self.model_str == "SVC_Linear": return 
         plt.figure()
         plt.title(f"{self.model_str} Model with Projection {self.projection_type} Trained Parameters")
         plt.ylabel('Parameter Value')
@@ -194,16 +194,34 @@ class Score_Classifier(Regression_Model):
         if use_jet: 
             cmap = plt.cm.jet
             # plt.bar(x, self.classifier.coef_, color=cmap(x / len(x)))
-        else:
-            # support_vectors = self.classifier.support_vectors_
-            # dual_coefficients = self.classifier.dual_coef_
-            # print("Support Vectors:")
-            # print(support_vectors)
-            # print("\nDual Coefficients:")
-            # print(dual_coefficients)
-            # plt.bar(x, self.classifier.coef_)
-            print(f"SVM CLassifier Weights Dimensions : {self.classifier.coef_.shape}")
-            print(f"SVM CLassifier Weights: {self.classifier.coef_}")
+        # if self.model_str == "SVC_Linear":            
+        #     support_vectors = self.classifier.support_vectors_
+        #     dual_coefficients = self.classifier.dual_coef_
+        #     print("Support Vectors:")
+        #     print(support_vectors)
+        #     print("\nDual Coefficients:")
+        #     print(dual_coefficients)
+        #     plt.bar(x, self.classifier.coef_)
+        #     print(f"Classifier Weights Dimensions : {self.classifier.coef_.shape}")
+        #     print(f"Classifier Weights: {self.classifier.coef_}")
+
+        if self.model_str == "Random_Forest": 
+            feature_importances = self.classifier.feature_importances_
+            # Generate feature names for the randomly generated featuresx
+            feature_names = [f"Topic {i+1}" for i in range(len(feature_importances))]
+            # Sort features by importance
+            sorted_idx = np.argsort(feature_importances)[::-1]
+
+            # Plot feature importances
+            # plt.figure(figsize=(10, 6))
+            cmap = plt.cm.jet
+            plt.bar(range(len(feature_importances)), feature_importances[sorted_idx], align="center", color=cmap(x / len(x)))
+            plt.xticks(range(len(feature_importances)), np.array(feature_names)[sorted_idx], rotation=45)
+            # plt.bar(range(len(feature_importances)), feature_importances, align="center")
+            # plt.xticks(range(len(feature_importances)), np.array(feature_names), rotation=45)
+            plt.show()
+        
+
     def plot_accuracy_per_score_bracket(self, predicted_score_brackets):
         accuracies_per_score_bracket = dict()
         for score_bracket in range(NUM_BRACKETS):
