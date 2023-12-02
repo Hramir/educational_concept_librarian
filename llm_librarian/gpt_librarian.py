@@ -7,15 +7,23 @@ import time
 from logger import Logger
 
 
+verbose = True
+debugging = False
+logging = True
+#model_id = "gpt-4-1106-preview"
+model_id = "gpt-3.5-turbo-1106"
+randomly_sample_subset = None
+
+
 def print_dialog(prompt_1, response_1, prompt_2, response_2, video_json, concept_library):
   print("\n\n========== Prompt 1 ==================")
-  print(prompt_1_filled)
+  print(prompt_1)
 
   print("\n\n=== Prompt 2 (includes response 1) ===")
-  print(response_1_text + "\n\n" + prompt_2_filled)
+  print(response_1 + "\n\n" + prompt_2)
 
   print("\n\n========== Response 2 ================")
-  print(response_2_text)
+  print(response_2)
 
   print("\n\n========== Video JSON ================")
   print(video_json)
@@ -96,13 +104,6 @@ def check_and_repair_json(json_obj):
 
   return json_obj_clone, anomalies
 
-
-verbose = True
-debugging = True
-logging = True
-model_id = "gpt-4-1106-preview"
-# model_id = "gpt-3.5-turbo-1106"
-randomly_sample_subset = 5
 
 # Load the video transcripts
 df = pd.read_csv("video_transcripts.csv")
@@ -204,7 +205,7 @@ for index, row in df.iterrows():
     concept_library = expand_concepts(video_json, concept_library)
 
     if verbose: 
-      print_dialog(prompt_1, response_1, prompt_2, response_2, video_json, concept_library)
+      print_dialog(prompt_1_filled, response_1_text, prompt_2_filled, response_2_text, video_json, concept_library)
     
     # Save the updated dataframe
     df.to_csv("video_transcripts_with_hierarchy_" + str(int(start_timestamp)) + ".csv", index=False)
@@ -216,7 +217,7 @@ for index, row in df.iterrows():
   except Exception as e:
     major_error_count = major_error_count + 1
     print("ERROR. Printing dialog:")
-    print_dialog(prompt_1, response_1, prompt_2, response_2, video_json, concept_library)
+    print_dialog(prompt_1_filled, response_1_text, prompt_2_filled, response_2_text, video_json, concept_library)
     if debugging: 
       raise e
 
