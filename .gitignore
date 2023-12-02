@@ -2,6 +2,9 @@ data/
 *__pycache__*
 .ipynb_checkpoints/
 
+data_scraper/data
+data_scraper/data_downloader.py
+
 *.model
 *.npy
 *.id2word

@@ -17,15 +17,22 @@ metadata = video_metadata_from_id("KswZ1wnCejs")
 expected = "KswZ1wnCejs"
 actual = metadata["id"]
 assert actual == expected, f"Expected metadata[\"id\"] to be {expected}, but got {actual}."
+
 expected = "239"
 actual = metadata["duration"]
 assert actual == expected, f"Expected metadata[\"duration\"] to be {expected}, but got {actual}."
+
 expected = "99"
 actual = metadata["views"]
 assert int(actual) >= int(expected), f"Expected metadata[\"views\"] to be at least {expected}, but got {actual}."
+
 expected = "UC2YE5AUXk8KCGPLOfY9eCXA"
 actual = metadata["channel"]
 assert actual == expected, f"Expected metadata[\"channel\"] to be {expected}, but got {actual}."
+
+expected = "Intuition for Limits"
+actual = metadata["title"]
+assert actual == expected, f"Expected metadata[\"title\"] to be {expected}, but got {actual}."
 
 
 
@@ -46,6 +53,7 @@ with open("data_scraper/PLF8mMTQil4Z8vsWfZsb0bcD51Z6JoHPzG 0.txt", "r") as file:
     assert file.readline()[:-1] == "239", "Expected correct video duration."
     assert int(file.readline()[:-1]) >= 99, "Expected correct view count."
     assert file.readline()[:-1] == "UC2YE5AUXk8KCGPLOfY9eCXA", "Expected correct channel ID."
+    assert file.readline()[:-1] == "Intuition for Limits", "Expected correct video title."
 # Manual Testing Strategy:
 # Check lines after the metadata tested above to see if they match the transcript
 # from the video

@@ -47,6 +47,7 @@ def video_metadata_from_id(video_id):
             duration: The number of seconds the video lasts
             views: The number of views the video has
             channel: The ID of the channel that posted the video
+            title: The title of the video
     """
 
     # Loads the video metadata
@@ -57,6 +58,7 @@ def video_metadata_from_id(video_id):
         "duration": video_info["duration"]["secondsText"],
         "views": video_info["viewCount"]["text"],
         "channel": video_info["channel"]["id"],
+        "title": video_info["title"],
     }
 
 
@@ -105,8 +107,9 @@ def store_playlist_videos_metadata(playlist_id, local_path_str=""):
     Line 2: Video duration in seconds
     Line 3: The number of views the video has as of downloading the data
     Line 4: Channel ID
+    Line 5: Video Title
 
-    Lines 5+: The words (split as in video_transcript_from_id) from the video's
+    Lines 6+: The words (split as in video_transcript_from_id) from the video's
     transcript, each on its own line.
 
     The number of lines from the beginning of the file to the point at which the
@@ -135,7 +138,7 @@ def store_playlist_videos_metadata(playlist_id, local_path_str=""):
         with open(f"{local_path_str}{('/' if local_path_str!='' else '')}{playlist_id} {index}.txt", "w") as file:
 
             # Stores the non-transcript metadata
-            for tag in ["id", "duration", "views", "channel"]:
+            for tag in ["id", "duration", "views", "channel", "title"]:
                 file.write(metadata[tag] + "\n")
 
             # Stores the video's transcribed words
