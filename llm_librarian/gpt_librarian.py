@@ -234,10 +234,16 @@ print("Completion token count:", completion_token_count)
 
 print("PRICING:")
 if model_id == "gpt-4-1106-preview":
-  print("Prompt tokens: $" + str(prompt_token_count * ((0.01/1000))))
-  print("Completion tokens: $" + str(completion_token_count * ((0.03/1000))))
+  prompt_cost = prompt_token_count * ((0.01/1000))
+  completion_cost = completion_token_count * ((0.03/1000))
 elif model_id == "gpt-3.5-turbo-1106":
-  print("Prompt tokens: $" + str(prompt_token_count * ((0.001/1000))))
-  print("Completion tokens: $" + str(completion_token_count * ((0.002/1000))))
+  prompt_cost = prompt_token_count * ((0.001/1000))
+  completion_cost = completion_token_count * ((0.002/1000))
 else: 
   print("Unspecified model type, unable to calculate cost.")
+  prompt_cost = 0
+  completion_cost = 0
+
+print("Prompt cost: $" + str(prompt_cost))
+print("Completion cost: $" + str(completion_cost))
+print("TOTAL COST: $" + str(prompt_cost + completion_cost))
