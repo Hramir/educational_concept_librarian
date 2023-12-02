@@ -180,8 +180,8 @@ for index, row in df.iterrows():
     )
 
     # Count tokens to track usage: 
-    prompt_token_count = prompt_token_count + response_1.usage.prompt_tokens
-    completion_token_count = completion_token_count + response_1.usage.completion_tokens
+    prompt_token_count = prompt_token_count + response_2.usage.prompt_tokens
+    completion_token_count = completion_token_count + response_2.usage.completion_tokens
 
     response_2_text = response_2.choices[0].message.content.strip()
 
