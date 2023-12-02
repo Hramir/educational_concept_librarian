@@ -11,8 +11,11 @@ def print_dialog(prompt_1, response_1, prompt_2, response_2, video_json, concept
   print("\n\n========== Prompt 1 ==================")
   print(prompt_1_filled)
 
-  print("\n\n=== Prompt 2 (includes response 1) ===")
-  print(response_1_text + "\n\n" + prompt_2_filled)
+  print("\n\n========== Response 1 ================")
+  print(response_1_text)
+
+  print("\n\n=== Prompt 2 ===")
+  print(prompt_2)
 
   print("\n\n========== Response 2 ================")
   print(response_2_text)
@@ -43,6 +46,21 @@ def expand_concepts(json_data, concepts_set):
             expand_concepts({"lesson": item["activities"]}, concepts_set)
     
     return concepts_set
+
+
+def replace_concepts(json_data, replacement_dict):
+    for item in json_data["lesson"]:
+        # Add concepts from the current level to the set
+        if item["primary_concept"] in replacement_dict.keys():
+           item["primary_concept"] = replacement_dict[item["primary_concept"]]
+
+        for i in range(len(item["supporting_concepts"])):
+          if item["supporting_concepts"][i] in replacement_dict.keys():
+            item["supporting_concepts"][i] = replacement_dict[item["supporting_concepts"][i]]
+        
+        # If there are nested activities, recurse into them
+        if "activities" in item and item["activities"]:
+            replace_concepts({"lesson": item["activities"]}, replacement_dict)
 
 
 def check_and_repair_json(json_obj):
@@ -100,12 +118,12 @@ def check_and_repair_json(json_obj):
 verbose = True
 debugging = True
 logging = True
-model_id = "gpt-4-1106-preview"
-# model_id = "gpt-3.5-turbo-1106"
-randomly_sample_subset = 5
+#model_id = "gpt-4-1106-preview"
+model_id = "gpt-3.5-turbo-1106"
+randomly_sample_subset = None  # Set to None to not subsample, or to an integer of samples to take
 
 # Load the video transcripts
-df = pd.read_csv("video_transcripts.csv")
+df = pd.read_csv("video_transcripts_first4.csv")
 
 if randomly_sample_subset and randomly_sample_subset is not None: 
   df = df.sample(n=randomly_sample_subset, replace=False, random_state=randomly_sample_subset)
@@ -137,7 +155,7 @@ completion_token_count = 0
 for index, row in df.iterrows():
     
   try:
-    response_1_text = ""
+    response_1_text = None
     response_2_text = None
     prompt_1_filled = None
     prompt_2_filled = None
@@ -165,6 +183,23 @@ for index, row in df.iterrows():
 
     response_1_text = response_1.choices[0].message.content.strip()
 
+    response_1_summary = response_1_text.split("```json")[0]
+
+    video_json_str = response_1_text.split("```json")[1]
+    if video_json_str[-3:] == "```": video_json_str = video_json_str[0:-3]
+
+    video_json = json.loads(video_json_str)
+
+    # Check and repair errors in json structure
+    repaired_json, anomalies = check_and_repair_json(video_json)
+    if len(anomalies) > 0:
+      json_structure_error_count = json_structure_error_count + len(anomalies)
+      print("WARNING: JSON structure errors encountered. Here is a summary of the errors:")
+      print(anomalies)
+      video_json = repaired_json
+
+    concept_set = expand_concepts(video_json, set([]))
+
     # Replace <concept_library> in prompt_2 with the string representation of concept_library
     prompt_2_filled = prompt_2.replace("<concept_library>", str(list(concept_library)))
 
@@ -173,8 +208,9 @@ for index, row in df.iterrows():
         model=model_id,  # Adjust the model as necessary
         response_format={"type": "json_object"},
         messages=[
-          {"role": "system", "content": "You are are an expert data analyst. You are part of a research team studying the role of concept hierarchies in determining the teaching quality of educational videos."},
-          {"role": "user", "content": response_1_text + "\n\n" + prompt_2_filled,},
+          {"role": "system", "content": "You are are an expert data analyst. You are part of a research team studying the role of concept hierarchies in determining the teaching quality of educational videos. You have provided a summary of a video transcript along with a list of concepts discussed in the video."},
+          {"role": "assistant", "content": response_1_summary + "\n\n" + str(concept_set)},
+          {"role": "user", "content": prompt_2_filled},
         ]
         # max_tokens=500  # Adjust max tokens as necessary
     )
@@ -187,24 +223,25 @@ for index, row in df.iterrows():
 
     if response_2_text[0:7] == "```json": response_2_text = response_2_text[7:]
     if response_2_text[-3:] == "```": response_2_text = response_2_text[0:-3]
-    video_json = json.loads(response_2_text)
+    concept_replacement_dict = json.loads(response_2_text)
 
-    # Check and repair errors in json structure
-    repaired_json, anomalies = check_and_repair_json(video_json)
-    if len(anomalies) > 0:
-      json_structure_error_count = json_structure_error_count + len(anomalies)
-      print("WARNING: JSON structure errors encountered. Here is a summary of the errors:")
-      print(anomalies)
-      video_json = repaired_json
+    # Make sure all the values from the concept replacement dict are in the concept library
+    keys_to_check = list(concept_replacement_dict.keys())
+    for key in keys_to_check:
+        if concept_replacement_dict[key] not in concept_library:
+            del concept_replacement_dict[key]
 
-    # Save the JSON string to the dataframe
-    df.at[index, "activity_concept_hierarchy"] = video_json
+    # Replace redundant concepts in the video json with ones from the current library
+    replace_concepts(video_json, concept_replacement_dict)
 
     # Augment the concept library
     concept_library = expand_concepts(video_json, concept_library)
 
+    # Save the JSON to the dataframe
+    df.at[index, "activity_concept_hierarchy"] = video_json
+
     if verbose: 
-      print_dialog(prompt_1, response_1, prompt_2, response_2, video_json, concept_library)
+      print_dialog(prompt_1_filled, response_1_text, prompt_2_filled, response_2_text, video_json, concept_library)
     
     # Save the updated dataframe
     df.to_csv("video_transcripts_with_hierarchy_" + str(int(start_timestamp)) + ".csv", index=False)
@@ -216,7 +253,7 @@ for index, row in df.iterrows():
   except Exception as e:
     major_error_count = major_error_count + 1
     print("ERROR. Printing dialog:")
-    print_dialog(prompt_1, response_1, prompt_2, response_2, video_json, concept_library)
+    print_dialog(prompt_1_filled, response_1_text, prompt_2_filled, response_2_text, video_json, concept_library)
     if debugging: 
       raise e
 

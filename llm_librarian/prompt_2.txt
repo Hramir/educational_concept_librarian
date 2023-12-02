@@ -1,5 +1,14 @@
-Great work on producing this JSON summary of the video transcript! Now, please provide a new version of the same JSON, reconciling the names of the concepts in the JSON with the list of concepts below. No concept from the current JSON should be removed, but if there is an equivalent or extremely similar concept in the list below, please replace it with the one from the list. For example, “dot product” and “scalar product” refer to the same operation, so if “dot product” was in the list, it could replace any instances of “scalar product” in the JSON. However, in other cases, the same mathematical idea might be conceptualized in two different ways, in which case they should be considered separate concepts: for example, “matrix-vector multiplication” and “linear transformation” would be considered separate concepts. Please use your best judgment. Here is the list of concepts to be reconciled: 
+Thank you for this summary of the video transcript with a list of key concepts! 
+
+Now, please identify any concepts (strings in the "primary concept" or "supporting_concepts" fields) that are redundant with (i.e. equivalent or very similar to) the concepts in our existing library of concepts listed below - we should avoid adding redundant concepts to the list. Here are some examples of redundant or not redundant pairs of concepts: 
+1. Variations on words like "eigenvalues" vs eigenvalue" or "linear transformation" vs "linear transform" are redundant
+2. "dot product" and "scalar product" are redundant (they refer to the same mathematical operation)
+3. "matrix-vector multiplication" and "linear transformation" are not redundant: they represent two different ways of thinking about the same underlying mathematical idea
+4. "linearly independent vectors" and "linear independence" are redundant, but "linearly independent rows" is NOT redundant with either of these terms (because it is more specific to thinking about rows of a matrix)
+When in doubt, think: "do these concept names represent two distinct ways of thinking (not redundant), or are they just different ways of wording the same thing (redundant)?" Here is the library of concepts to draw from: 
+
 ```
 <concept_library>
 ```
-Please provide only the JSON, with no accompanying explanation or other text. 
+
+Provide your response as a json-formatted dictionary, mapping from concept names that appear in the original list of concepts from the video transcript, to concept names that appear in the concept library above. An example of the correct format would be: {"eigenvalues": "eigenvalue", "scalar product": "dot product"}
