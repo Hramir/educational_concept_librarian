@@ -1,0 +1,5 @@
+Great work on producing this JSON summary of the video transcript! Now, please provide a new version of the same JSON, reconciling the names of the concepts in the JSON with the list of concepts below. No concept from the current JSON should be removed, but if there is an equivalent or extremely similar concept in the list below, please replace it with the one from the list. For example, “dot product” and “scalar product” refer to the same operation, so if “dot product” was in the list, it could replace any instances of “scalar product” in the JSON. However, in other cases, the same mathematical idea might be conceptualized in two different ways, in which case they should be considered separate concepts: for example, “matrix-vector multiplication” and “linear transformation” would be considered separate concepts. Please use your best judgment. Here is the list of concepts to be reconciled: 
+```
+<concept_library>
+```
+Please provide only the JSON, with no accompanying explanation or other text. 

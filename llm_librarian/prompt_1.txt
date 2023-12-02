@@ -1,0 +1,63 @@
+Please carefully read the following transcript of an educational YouTube video, and refer to it for the following analysis: 
+
+“
+<transcript>
+”
+
+Your task is to construct a hierarchical representation of the video transcript (represented in JSON format), using a library of “activities” and “concepts.” The video is composed of one or more teaching “activities.” The complete set of activities is as follows: 
+“definition”: introducing and explaining a new concept or idea
+“example”: providing an example that illustrates a concept or idea
+“visualization”: using a graph, image, animation, or other visualization to illustrate a concept or idea
+“application”: introducing or discussing a motivating application for a concept or idea
+“analogy”: drawing an analogy between a new concept or idea, and a concept or idea that the student is likely to be already familiar with. 
+“additional resources”: referring to additional resources that the student can use to further their learning about the present topic or other related topics. 
+
+Each activity is associated with a single primary concept, the concept that that activity aims to teach or improve the student’s understanding about. For example, a “definition” of what matrix multiplication is would have “matrix multiplication” as a primary concept. The video that this transcript came from teaches the student something within the subject of linear algebra, so the names of concepts are the names of well-known concepts in linear algebra such as “dot product”, “linear independence”, “eigenvectors”, “change of basis”, etc. The names of concepts are always in lower-case only. 
+
+Each activity may also contain one or more supporting concepts that are used to explain the primary concept. For example, a “definition” activity with the primary concept “matrix multiplication” might use the supporting concepts “rows”, “columns”, and “dot product” to explain how to calculate each element in the matrix. Supporting concepts associated with an activity/primary concept should be written as lists, like [“rows”, “columns”, “dot product”].
+
+Each of the activities can also contain one or more activities within them, if they are drawn from the same list: “definition”, “example”, “visualization”, “application”, “analogy”, and “additional resources”. For example, the instructor might work through an example that involves a motivating application, and uses a graph as part of the problem-solving process: this would be an “example” activity that includes “application” and “visualization” activities. Sub-activities within a primary activity should be formatted as lists, like [“definition”, “visualization”]. 
+
+For example, a complete hierarchical activity representation of a video (**not** the video you will be analyzing, but a different example video) might look like this: 
+
+json```
+{
+  "lesson": [
+    {
+      "activity": "definition",
+      "primary_concept": "dot product",
+      "supporting_concepts": ["vector", "addition", "multiplication"],
+      "activities": []
+    },
+    {
+      "activity": "visualization",
+      "primary_concept": "dot_product",
+      "supporting_concepts": ["vector", "projection"],
+      "activities": []
+    },
+    {
+      "activity": "application",
+      "primary_concept": "dot_product",
+      "supporting_concepts": ["vector", "angle between vectors"],
+      "activities": [
+        {
+          "activity": "visualization",
+          "primary_concept": "dot product",
+          "supporting_concepts": ["vector", "angle between vectors", "projection"],
+          "activities": []
+        },
+        {
+          "activity": "example",
+          "primary_concept": "dot product",
+          "supporting_concepts": ["vector", "angle between vectors", "cosine"],
+          "activities": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+In this example, the video opens with a definition of the dot product, using the concepts of vector multiplication and linear independence in the initial explanation. The instructor then makes use of a visualization that shows how a dot product can be seen as a projection of one vector onto another. The video finishes with an example. The example includes introducing a motivating application, which involves using the dot product to find the angle between two vectors, and therefore invokes the concepts of “dot product” and “angle between two vectors”. Within the context of this same example, the instructor then uses a visualization to show how the dot product is related to the angle between two vectors. 
+
+Given this example and the transcript above, you are ready to construct a hierarchical activity representation of the video transcript. Begin by writing down a comprehensive summary of the video. Then, use the summary to construct the json, making sure to include all activities, primary and supporting concepts associated with each activity, and sub-activities within each activity. Please make sure the json is formatted such that it could be directly parsed by the json library in Python. Let’s take a deep breath and work on this analysis step by step.
