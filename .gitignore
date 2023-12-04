@@ -4,6 +4,8 @@ data/
 
 data_scraper/data
 data_scraper/data_downloader.py
+fhnn/logs
+fhnn/data
 
 *.model
 *.npy
