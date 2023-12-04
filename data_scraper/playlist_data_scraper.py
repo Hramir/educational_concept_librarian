@@ -1,6 +1,25 @@
 from youtubesearchpython import Playlist, Video
 from youtube_transcript_api import YouTubeTranscriptApi
 
+def remove_non_ascii(string):
+    """
+    Removes non-ASCII characters from the string.
+
+    string: str
+        The string to remove non-ASCII characters from.
+
+    Returns:
+        The string but without non-ASCII characters.
+    """
+    mod_string = ""
+    for char in string.strip():
+        if char.isascii():
+            if char == "\n":
+                mod_string += " "
+            else:
+                mod_string += char
+    return mod_string
+
 def video_ids_from_playlist(playlist_id):
     """
     playlist_id: str
@@ -105,13 +124,7 @@ def video_transcript_from_id(video_id):
         dirty_words += line["text"].split()
 
     # Removes non-ASCII characters from the transcript
-    words = []
-    for word in dirty_words:
-        new_word = ""
-        for char in word:
-            if char.isascii():
-                new_word += char
-        words.append(new_word)
+    words = [remove_non_ascii(word) for word in dirty_words]
 
     # Glues words together with a space character between them
     complete_transcript = words[0]
@@ -131,7 +144,8 @@ def video_comments_from_id(video_id, youtube_client):
 
     Returns: list of str
         The comments on the video with the given video ID, where all newline characters have
-        been replaced with space characters.
+        been replaced with space characters. If there are no comments or if comments are disabled,
+        returns the list ["NO COMMENTS AVAILABLE"].
     """
 
     # Stores values for the function
@@ -142,34 +156,29 @@ def video_comments_from_id(video_id, youtube_client):
     while True:
 
         # Requests the data of the video
-        response = youtube_client.commentThreads().list(
-            part='snippet',
-            videoId=video_id,
-            textFormat='plainText',
-            pageToken=nextPageToken
-        ).execute()
+        try:
+            response = youtube_client.commentThreads().list(
+                part='snippet',
+                videoId=video_id,
+                textFormat='plainText',
+                pageToken=nextPageToken
+            ).execute()
+        except:
+            return ["NO COMMENTS AVAILABLE"]
 
         # Runs through each comment
         for item in response['items']:
             comment = item['snippet']['topLevelComment']['snippet']['textDisplay']
-
-            # Replaces newlines in the comments with spaces
-            mod_comment = ""
-            for comment_char in comment.strip():
-                if comment_char.isascii():
-                    if comment_char == "\n":
-                        mod_comment += " "
-                    else:
-                        mod_comment += comment_char
-
-            comments.append(mod_comment)
+            comments.append(remove_non_ascii(comment))
 
         # Goes to the next page of comments, if any
         nextPageToken = response.get('nextPageToken')
         if not nextPageToken:
             break
 
-    return comments
+    if len(comments) > 0:
+        return comments
+    return ["NO COMMENTS AVAILABLE"]
 
 
 def store_playlist_videos_metadata(playlist_id, youtube_client, local_path_str=""):
@@ -229,7 +238,7 @@ def store_playlist_videos_metadata(playlist_id, youtube_client, local_path_str="
 
             # Stores the non-transcript/comment metadata
             for tag in ["title", "id", "duration", "views", "likes", "channel_name", "channel_id"]:
-                file.write(metadata[tag] + "\n")
+                file.write(remove_non_ascii(metadata[tag]) + "\n")
 
             # Stores the video's transcribed words
             file.write(transcript + "\n")
