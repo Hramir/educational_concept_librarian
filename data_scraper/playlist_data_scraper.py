@@ -100,14 +100,24 @@ def video_transcript_from_id(video_id):
         return "NO TRANSCRIPT AVAILABLE"
 
     # Stores each individual word in the transcript
-    words = []
+    dirty_words = []
     for line in transcript:
-        words += line["text"].split()
+        dirty_words += line["text"].split()
+
+    # Removes non-ASCII characters from the transcript
+    words = []
+    for word in dirty_words:
+        new_word = ""
+        for char in word:
+            if char.isascii():
+                new_word += char
+        words.append(new_word)
 
     # Glues words together with a space character between them
     complete_transcript = words[0]
     for word in words[1:]:
-        complete_transcript += " " + word
+        if len(word) > 0:
+            complete_transcript += " " + word
     return complete_transcript
 
 def video_comments_from_id(video_id, youtube_client):
