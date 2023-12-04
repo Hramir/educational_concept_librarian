@@ -1,4 +1,4 @@
-from youtubesearchpython import Channel, Playlist, Video
+from youtubesearchpython import Playlist, Video
 from youtube_transcript_api import YouTubeTranscriptApi
 
 def video_ids_from_playlist(playlist_id):
@@ -181,6 +181,7 @@ def store_playlist_videos_metadata(playlist_id, youtube_client, local_path_str="
     Line 9: Channel name
     Line 10: Channel ID
     Line 11: Transcript
+
     Lines 12+: Top-level comments on the video, where each line corresponds to an
     individual top-level comment on the video. The replies to comments are not included.
 
