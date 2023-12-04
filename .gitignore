@@ -2,8 +2,10 @@ data/
 *__pycache__*
 .ipynb_checkpoints/
 
+data_scraper/old_data
 data_scraper/data
 data_scraper/data_downloader.py
+data_scraper/youtube_api.py
 fhnn/logs
 fhnn/data
 
