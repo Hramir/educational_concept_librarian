@@ -3,7 +3,7 @@ from playlist_data_scraper import video_transcript_from_id, store_playlist_video
 from googleapiclient.discovery import build
 
 # Creates the YouTube API client
-API_KEY = "AIzaSyBt5u5kxlrxC7qu7oT10073aIttAOM00pE"
+API_KEY = ""
 YOUTUBE_CLIENT = build('youtube', 'v3', developerKey=API_KEY)
 
 # Tests the video_ids_from_playlist function
