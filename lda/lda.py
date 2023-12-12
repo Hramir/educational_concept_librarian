@@ -1,4 +1,4 @@
-# IMPORTANT: run this file from the project root directly, like "python lda/lda_test.py"
+# IMPORTANT: run this file from the project root directly, like "python lda/lda.py"
 
 import string
 import pandas as pd
@@ -46,8 +46,7 @@ def perform_lda(dataframe, num_topics=10):
 num_topics = 10
 
 # Load the data
-directory_path = 'data'
-df = process_directory(directory_path)
+df = pd.read_csv("video_transcripts_with_hierarchy_1702247372.csv")
 print("Dataframe head:")
 print(df.head())
 print("----------------------------------")

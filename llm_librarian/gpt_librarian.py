@@ -13,6 +13,8 @@ logging = True
 #model_id = "gpt-4-1106-preview"
 model_id = "gpt-3.5-turbo-1106"
 randomly_sample_subset = None
+video_transcripts_file = "video_transcripts_with_hierarchy_1702247372.csv"
+concept_library_init_file = "concept_library_1702247372.pkl" # Set to None to build library from scratch
 
 
 def print_dialog(prompt_1, response_1, prompt_2, response_2, video_json, concept_library):
@@ -20,7 +22,7 @@ def print_dialog(prompt_1, response_1, prompt_2, response_2, video_json, concept
   print(prompt_1)
 
   print("\n\n=== Prompt 2 (includes response 1) ===")
-  print(response_1 + "\n\n" + prompt_2)
+  print(prompt_2)
 
   print("\n\n========== Response 2 ================")
   print(response_2)
@@ -54,7 +56,7 @@ def expand_concepts(json_data, concepts_set):
 
 
 def check_and_repair_json(json_obj):
-  valid_activities = ["definition", "example", "visualization", "application", "analogy", "additional resources"]
+  valid_activities = ["definition", "example", "visualization", "application", "analogy", "review", "additional resources"]
   anomalies = []
 
   def create_empty_activity(original_activity_name="", upper_primary_concept=""):
@@ -65,7 +67,7 @@ def check_and_repair_json(json_obj):
       "activities": []
     }
 
-  def check_activity(activity, path):
+  def check_activity(activity, path, valid_activities):
     # Reinitialize fields if they are not strings or lists as required
     if not isinstance(activity.get("activity", None), str):
       activity["activity"] = ""
@@ -78,6 +80,10 @@ def check_and_repair_json(json_obj):
     if not isinstance(activity.get("supporting_concepts", None), list):
       activity["supporting_concepts"] = []
       anomalies.append(f"Non-list 'supporting_concepts' at {path}, reinitialized to empty list")
+
+    # Make sure it's a valid activity name
+    if activity["activity"] not in valid_activities:
+      anomalies.append(f"Non-standard activity: {activity['activity']}")
 
     # Check and fix 'activities' field
     if "activities" not in activity or not isinstance(activity["activities"], list):
@@ -93,29 +99,38 @@ def check_and_repair_json(json_obj):
           anomalies.append(f"Invalid 'activities' item at {path}[{i}], replaced with empty activity")
           activity["activities"][i] = create_empty_activity()
         else:
-          check_activity(nested_activity, f"{path}[{i}]")
+          check_activity(nested_activity, f"{path}[{i}]", valid_activities)
 
   # Clone the object to avoid modifying the original
   json_obj_clone = json.loads(json.dumps(json_obj))
 
   # Check the structure
   for i, lesson in enumerate(json_obj_clone["lesson"]):
-    check_activity(lesson, f"lesson[{i}]")
+    check_activity(lesson, f"lesson[{i}]", valid_activities)
 
   return json_obj_clone, anomalies
 
 
 # Load the video transcripts
-df = pd.read_csv("video_transcripts.csv")
+df = pd.read_csv(video_transcripts_file)
+
+df = df.sort_values(by=['playlist_position'])
 
 if randomly_sample_subset and randomly_sample_subset is not None: 
   df = df.sample(n=randomly_sample_subset, replace=False, random_state=randomly_sample_subset)
 
 # New column for hierarchy
-df["activity_concept_hierarchy"] = ""
+if "activity_concept_hierarchy" not in df.columns:
+  df["activity_concept_hierarchy"] = ""
 
-# Initialize the concept library set
-concept_library = set()
+if concept_library_init_file is None:
+  # Initialize the concept library set
+  concept_library = set()
+else:
+  concept_library = set(pickle.load(open(concept_library_init_file, 'rb')))
+
+print("INITIAL CONCEPT LIBRARY: ")
+print(concept_library)
 
 # Load prompt templates
 with open("prompt_1.txt", "r") as file:
@@ -133,100 +148,119 @@ major_error_count = 0
 json_structure_error_count = 0
 prompt_token_count = 0
 completion_token_count = 0
+total_tries = 0
 
 # Process each transcript in the dataframe
 for index, row in df.iterrows():
-    
-  try:
-    response_1_text = ""
-    response_2_text = None
-    prompt_1_filled = None
-    prompt_2_filled = None
-    video_json = None
-    print("====================================================")
-    print("============= Video ID: " + str(row["video_id"]) + " ================")
 
-    # Replace <transcript> in prompt_1 with the actual transcript
-    transcript = row["transcript"]
-    prompt_1_filled = prompt_1.replace("<transcript>", transcript)
+  if df.at[index, "activity_concept_hierarchy"] == "":
+    retries = 0
+    success = False
+    retry_limit = 3
+    while retries < retry_limit and not success: 
+      total_tries += 1
+      if retries > 0: 
+        print(f"RETRYING. Retried {retries} times")
+      try:
+        response_1_text = ""
+        response_2_text = None
+        prompt_1_filled = None
+        prompt_2_filled = None
+        video_json = None
+        print("====================================================")
+        print("============= Video ID: " + str(row["video_id"]) + " ================")
 
-    # Send prompt_1 to OpenAI and get the response
-    response_1 = client.chat.completions.create(
-        model=model_id,  # Adjust the model as necessary
-        messages=[
-          {"role": "system", "content": "You are are an expert data analyst. You are part of a research team studying the role of concept hierarchies in determining the teaching quality of educational videos."},
-          {"role": "user", "content": prompt_1_filled},
-        ]
-        # max_tokens=500  # Adjust max tokens as necessary
-    )
+        # Replace <transcript> in prompt_1 with the actual transcript
+        transcript = row["transcript"]
+        prompt_1_filled = prompt_1.replace("<transcript>", transcript)
 
-    # Count tokens
-    prompt_token_count = prompt_token_count + response_1.usage.prompt_tokens
-    completion_token_count = completion_token_count + response_1.usage.completion_tokens
+        # Send prompt_1 to OpenAI and get the response
+        response_1 = client.chat.completions.create(
+            model=model_id,  # Adjust the model as necessary
+            messages=[
+              {"role": "system", "content": "You are are an expert data analyst. You are part of a research team studying the role of activity and concept hierarchies in determining the teaching quality of educational videos."},
+              {"role": "user", "content": prompt_1_filled},
+            ]
+            # max_tokens=500  # Adjust max tokens as necessary
+        )
 
-    response_1_text = response_1.choices[0].message.content.strip()
+        # Count tokens
+        prompt_token_count = prompt_token_count + response_1.usage.prompt_tokens
+        completion_token_count = completion_token_count + response_1.usage.completion_tokens
 
-    # Replace <concept_library> in prompt_2 with the string representation of concept_library
-    prompt_2_filled = prompt_2.replace("<concept_library>", str(list(concept_library)))
+        response_1_text = response_1.choices[0].message.content.strip()
 
-    # Send prompt_2 to OpenAI and get the JSON string
-    response_2 = client.chat.completions.create(
-        model=model_id,  # Adjust the model as necessary
-        response_format={"type": "json_object"},
-        messages=[
-          {"role": "system", "content": "You are are an expert data analyst. You are part of a research team studying the role of concept hierarchies in determining the teaching quality of educational videos."},
-          {"role": "user", "content": response_1_text + "\n\n" + prompt_2_filled,},
-        ]
-        # max_tokens=500  # Adjust max tokens as necessary
-    )
+        # Replace <concept_library> in prompt_2 with the string representation of concept_library
+        # and also add the response 1 text
+        prompt_2_filled = prompt_2.replace("<concept_library>", str(list(concept_library))).replace("<response_1>", response_1_text)
 
-    # Count tokens to track usage: 
-    prompt_token_count = prompt_token_count + response_2.usage.prompt_tokens
-    completion_token_count = completion_token_count + response_2.usage.completion_tokens
+        # Send prompt_2 to OpenAI and get the JSON string
+        response_2 = client.chat.completions.create(
+            model=model_id,  # Adjust the model as necessary
+            response_format={"type": "json_object"},
+            messages=[
+              {"role": "system", "content": "You are are an expert data analyst. You are part of a research team studying the role of activity and concept hierarchies in determining the teaching quality of educational videos."},
+              {"role": "user", "content": prompt_2_filled},
+            ]
+            # max_tokens=500  # Adjust max tokens as necessary
+        )
 
-    response_2_text = response_2.choices[0].message.content.strip()
+        # Count tokens to track usage: 
+        prompt_token_count = prompt_token_count + response_2.usage.prompt_tokens
+        completion_token_count = completion_token_count + response_2.usage.completion_tokens
 
-    if response_2_text[0:7] == "```json": response_2_text = response_2_text[7:]
-    if response_2_text[-3:] == "```": response_2_text = response_2_text[0:-3]
-    video_json = json.loads(response_2_text)
+        response_2_text = response_2.choices[0].message.content.strip()
 
-    # Check and repair errors in json structure
-    repaired_json, anomalies = check_and_repair_json(video_json)
-    if len(anomalies) > 0:
-      json_structure_error_count = json_structure_error_count + len(anomalies)
-      print("WARNING: JSON structure errors encountered. Here is a summary of the errors:")
-      print(anomalies)
-      video_json = repaired_json
+        if response_2_text[0:7] == "```json": response_2_text = response_2_text[7:]
+        if response_2_text[-3:] == "```": response_2_text = response_2_text[0:-3]
+        video_json = json.loads(response_2_text)
 
-    # Save the JSON string to the dataframe
-    df.at[index, "activity_concept_hierarchy"] = video_json
+        # Check and repair errors in json structure
+        repaired_json, anomalies = check_and_repair_json(video_json)
+        if len(anomalies) > 0:
+          json_structure_error_count = json_structure_error_count + len(anomalies)
+          print("WARNING: JSON structure errors encountered. Here is a summary of the errors:")
+          print(anomalies)
+          if retries < retry_limit - 1: # Retry unless we are on our last try
+            raise ValueError("JSON structural error, retry")
+          else:
+            video_json = repaired_json
 
-    # Augment the concept library
-    concept_library = expand_concepts(video_json, concept_library)
+        # Save the JSON string to the dataframe
+        df.at[index, "activity_concept_hierarchy"] = video_json
 
-    if verbose: 
-      print_dialog(prompt_1_filled, response_1_text, prompt_2_filled, response_2_text, video_json, concept_library)
-    
-    # Save the updated dataframe
-    df.to_csv("video_transcripts_with_hierarchy_" + str(int(start_timestamp)) + ".csv", index=False)
+        # Augment the concept library
+        concept_library = expand_concepts(video_json, concept_library)
 
-    # Save the concept library using pickle
-    with open("concept_library_" + str(int(start_timestamp)) + ".pkl", "wb") as file:
-      pickle.dump(concept_library, file)
+        if verbose: 
+          print_dialog(prompt_1_filled, response_1_text, prompt_2_filled, response_2_text, video_json, concept_library)
+        
+        # Save the updated dataframe
+        df.to_csv("video_transcripts_with_hierarchy_" + str(int(start_timestamp)) + ".csv", index=False)
 
-  except Exception as e:
-    major_error_count = major_error_count + 1
-    print("ERROR. Printing dialog:")
-    print_dialog(prompt_1_filled, response_1_text, prompt_2_filled, response_2_text, video_json, concept_library)
-    if debugging: 
-      raise e
+        # Save the concept library using pickle
+        with open("concept_library_" + str(int(start_timestamp)) + ".pkl", "wb") as file:
+          pickle.dump(concept_library, file)
+
+        success = True
+
+      except Exception as e:
+        major_error_count = major_error_count + 1
+        print("ERROR. Printing dialog:")
+        print_dialog(prompt_1_filled, response_1_text, prompt_2_filled, response_2_text, video_json, concept_library)
+        retries = retries + 1
+        if debugging: 
+          raise e
+  else:
+    print(f"Video of ID {str(row['video_id'])} already processed, skipping...")
+
+print("FINAL CONCEPT LIBRARY:")
+print(concept_library)
 
 print("Total number of transcripts attempted:", len(df))
 print("Major error count:", major_error_count)
 print("JSON structure error count", json_structure_error_count)
-
-print("FINAL CONCEPT LIBRARY:")
-print(concept_library)
+print("Total tries:", total_tries)
 
 print("RUNTIME:", time.time() - start_timestamp, "seconds")
 
@@ -248,3 +282,5 @@ else:
 print("Prompt cost: $" + str(prompt_cost))
 print("Completion cost: $" + str(completion_cost))
 print("TOTAL COST: $" + str(prompt_cost + completion_cost))
+
+print("Saved as: " + "video_transcripts_with_hierarchy_" + str(int(start_timestamp)) + ".csv")
