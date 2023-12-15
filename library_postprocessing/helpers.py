@@ -1,7 +1,16 @@
 import math
 import statistics
 
-def count_concepts(json_data, primary_concepts={}, supporting_concepts={}):
+
+def get_embedding(model, tokenizer, text):
+  inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
+  outputs = model(**inputs)
+  return outputs.last_hidden_state.mean(dim=1).squeeze()
+
+def standardize(concept):
+  return concept.lower().replace("_", " ").replace(" = ", "=").replace(" x ", "x").replace(" + ", "+").replace("^", "")
+
+def count_concepts(json_data, pri_concepts=None, supp_concepts=None):
   """
   Function to count the primary and supporting concepts found in a nested JSON structure.
 
@@ -9,23 +18,28 @@ def count_concepts(json_data, primary_concepts={}, supporting_concepts={}):
   :return: dicts of primary and supporting concepts
   """
 
+  if pri_concepts is None:
+    pri_concepts = {}
+  if supp_concepts is None:
+    supp_concepts = {}
+
   for item in json_data["lesson"]:
     # Add concepts from the current level to the set
-    if item["primary_concept"] in primary_concepts:
-      primary_concepts[item["primary_concept"]] = primary_concepts[item["primary_concept"]] + 1
+    if item["primary_concept"] in pri_concepts:
+      pri_concepts[item["primary_concept"]] = pri_concepts[item["primary_concept"]] + 1
     else:
-      primary_concepts[item["primary_concept"]] = 1
+      pri_concepts[item["primary_concept"]] = 1
     for concept in item["supporting_concepts"]:
-      if concept in supporting_concepts:
-        supporting_concepts[concept] = supporting_concepts[concept] + 1
+      if concept in supp_concepts:
+        supp_concepts[concept] = supp_concepts[concept] + 1
       else:
-        supporting_concepts[concept] = 1
+        supp_concepts[concept] = 1
       
     # If there are nested activities, recurse into them
-    if "activities" in item and item["activities"]:
-      primary_concepts, supporting_concepts = count_concepts({"lesson": item["activities"]}, primary_concepts, supporting_concepts)
+    if "activities" in item and len(item["activities"]) > 0:
+      pri_concepts, supp_concepts = count_concepts({"lesson": item["activities"]}, pri_concepts, supp_concepts)
   
-  return primary_concepts, supporting_concepts
+  return pri_concepts, supp_concepts
 
 
 def merge_concept_counts(dict1, dict2):
