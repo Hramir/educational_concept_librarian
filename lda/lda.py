@@ -7,11 +7,6 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
 
-import os
-import sys
-parent_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.append(parent_dir)
-from utils.transcript_df_old import process_directory
 
 # Ensure you have the NLTK data downloaded
 nltk.download('stopwords')
@@ -46,7 +41,7 @@ def perform_lda(dataframe, num_topics=10):
 num_topics = 10
 
 # Load the data
-df = pd.read_csv("video_transcripts_with_hierarchy_1702247372.csv")
+df = pd.read_csv("video_transcripts_with_hierarchy_mapped_truncated_1702443584.csv")
 print("Dataframe head:")
 print(df.head())
 print("----------------------------------")
@@ -88,6 +83,6 @@ print("DataFrame with topic weightings:")
 print(df.head())
 
 # Save the csv with topic distributions, the LDA model, and the term dictionary: 
-df.to_csv("video_transcripts_with_topics.csv", index=False)
+df.to_csv("video_transcripts_with_hierarchy_mapped_truncated_1702443584.csv", index=False)
 lda_model.save('lda_model.model')
 term_dict.save('term_dict.dict')
