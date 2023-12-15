@@ -205,7 +205,7 @@ for index, row in df.iterrows():
             video_json = repaired_json
 
         # Save the JSON string to the dataframe
-        df.at[index, "activity_concept_hierarchy"] = video_json
+        df.at[index, "activity_concept_hierarchy"] = json.dumps(video_json)
 
         # Augment the concept library
         concept_library = expand_concepts(video_json, concept_library)
