@@ -1,4 +1,6 @@
 import os
+import matplotlib.pyplot as plt
+import numpy as np
 MAX_CONCEPT_HIERARCHY_SIZE = 40
 NUM_TRANSCRIPTS = 372
 NUM_ROIS = 360
@@ -8,6 +10,7 @@ COLORS = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff',
             '#800080', '#008080', '#ff8080', '#80ff80', '#8080ff', 
             '#ffff80', '#ff80ff', '#80ffff', '#c00000', '#00c000', 
             '#0000c0', '#c0c000', '#c000c0']
+CONCEPT_HIERARCHY_COLORS = plt.cm.jet(np.linspace(0, 1, MAX_CONCEPT_HIERARCHY_SIZE))
 DECADE_POSITIONS_STR_LIST = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"]
 NUM_DECADES = 8
 FIVE_PERCENT_THRESHOLD = 0.3598

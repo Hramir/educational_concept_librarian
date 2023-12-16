@@ -566,13 +566,33 @@ def get_adj_mat_dataset_splits_with_features_and_score_labels_and_indices(data_p
     # train_split_adj_matrices = [adjacency_matrix for _ in train_split_indices]
     # val_split_adj_matrices = [adjacency_matrix for _ in val_split_indices]
     # test_split_adj_matrices = [adjacency_matrix for _ in test_split_indices]
-    print("THESE ARE THE TRAINING INDEICES", train_split_indices)
-    train_split_adj_matrices = [get_adjacency_matrix_library_learning(i, data_path) for i in train_split_indices]
-    val_split_adj_matrices = [get_adjacency_matrix_library_learning(i, data_path) for i in val_split_indices]
-    test_split_adj_matrices = [get_adjacency_matrix_library_learning(i, data_path) for i in test_split_indices]
-    train_feats = [np.eye(MAX_CONCEPT_HIERARCHY_SIZE) for train_adj_matrix in train_split_adj_matrices]
-    val_feats = [np.eye(MAX_CONCEPT_HIERARCHY_SIZE) for val_adj_matrix in val_split_adj_matrices]
-    test_feats = [np.eye(MAX_CONCEPT_HIERARCHY_SIZE) for test_adj_matrix in test_split_adj_matrices]
+
+    # train_split_adj_matrices = [get_adjacency_matrix_library_learning(i, data_path) for i in train_split_indices]
+    # val_split_adj_matrices = [get_adjacency_matrix_library_learning(i, data_path) for i in val_split_indices]
+    # test_split_adj_matrices = [get_adjacency_matrix_library_learning(i, data_path) for i in test_split_indices]
+    train_split_adj_matrices = []
+    val_split_adj_matrices = []
+    test_split_adj_matrices = []
+    train_feats = []
+    val_feats = []
+    test_feats = []
+
+    for i in train_split_indices:
+        adj_mat, feat_mat = get_adjacency_and_feature_matrices_library_learning(i, data_path)
+        train_split_adj_matrices.append(adj_mat)
+        train_feats.append(feat_mat)
+    for i in val_split_indices:
+        adj_mat, feat_mat = get_adjacency_and_feature_matrices_library_learning(i, data_path)
+        val_split_adj_matrices.append(adj_mat)
+        val_feats.append(feat_mat)
+    for i in test_split_indices:
+        adj_mat, feat_mat = get_adjacency_and_feature_matrices_library_learning(i, data_path)
+        test_split_adj_matrices.append(adj_mat)
+        test_feats.append(feat_mat)
+
+    # train_feats = [np.eye(MAX_CONCEPT_HIERARCHY_SIZE) for train_adj_matrix in train_split_adj_matrices]
+    # val_feats = [np.eye(MAX_CONCEPT_HIERARCHY_SIZE) for val_adj_matrix in val_split_adj_matrices]
+    # test_feats = [np.eye(MAX_CONCEPT_HIERARCHY_SIZE) for test_adj_matrix in test_split_adj_matrices]
     
     # train_feats = [get_feature_matrix_library_learning(i, data_path) for i in train_split_indices]
     # val_feats = [get_feature_matrix_library_learning(i, data_path) for i in val_split_indices]
@@ -879,6 +899,154 @@ def get_adjacency_matrix_library_learning(graph_index : int, data_path : str) ->
     expanded_matrix[:len(symmetric_matrix), :len(symmetric_matrix)] = symmetric_matrix
 
     return expanded_matrix
+
+def get_word_embedding(primary_concept, model):
+    primary_concept = primary_concept.lower()
+    primary_concept = primary_concept.replace("(", "")
+    primary_concept = primary_concept.replace(")", "")
+    primary_concept = primary_concept.replace(".", "")
+    primary_concept = primary_concept.replace(",", "")
+    try:
+        if " " in primary_concept:
+            words = primary_concept.split(" ")
+            primary_concept_node_embedding = np.zeros(MAX_CONCEPT_HIERARCHY_SIZE)
+            for word in words:
+                word_embedding = model.wv[word]
+                primary_concept_node_embedding += word_embedding
+                # NOTE: Should we be averaging the word embeddings when the primary concept/supporting concept is made up of multiple words?
+        else:
+            primary_concept_node_embedding = model.wv[primary_concept]
+    except:
+        print(f"Word not in vocabulary : {primary_concept}")
+        print("Returning random embedding")
+        primary_concept_node_embedding = np.random.random(MAX_CONCEPT_HIERARCHY_SIZE)
+    return primary_concept_node_embedding
+
+def get_adjacency_and_feature_matrices_library_learning(graph_index ,data_path : str) -> List[List[int]]:
+    """
+    Create feature matrix JSON file and sentence embeddings file
+    into a 1 and 0 matrix 
+    """
+    # First open csv file as pandas, then access pandas cell using graph_index, access activity_concept_hierarchy column
+    # Then use json.loads to convert string to json, then access the adjacency matrix
+    import json
+    import pandas as pd
+    video_transcripts_df = pd.read_csv(os.path.join(os.getcwd(), 'data', 'library_learning', 'video_transcripts_with_hierarchy_1701550479.csv'))
+    json_str = video_transcripts_df['activity_concept_hierarchy'][graph_index]
+
+
+    def make_sentence(st):
+        if pd.isna(st):
+            return None
+        data = st.replace("'", "\"")
+        data = json.loads(data)
+        ret = ""
+
+        def handle_activity(activity):
+            nonlocal ret
+            ret += activity['activity']
+            ret += ' of '
+            ret += activity['primary_concept']
+            if activity['supporting_concepts']:
+                ret += ' supported by '
+                ret += ", ".join(activity['supporting_concepts'])
+            if activity['activities']:
+                ret += ' with following: '
+            for i in range(len(activity['activities'])):
+                handle_activity(activity['activities'][i])
+                if i != len(activity['activities']) - 1:
+                    ret += ', '
+
+        for activity in data['lesson']:
+            handle_activity(activity)
+            ret += ". "
+        return "lesson composed of " + ret
+    
+    from gensim.models import Word2Vec
+    from nltk.tokenize import word_tokenize
+    # FEATURE_VECTOR_DIMENSION = 10
+    try:
+        json_sentence = make_sentence(json_str.lower())
+        tokens = word_tokenize(json_sentence)
+        print("THIS IS THE SENTENCE: ", json_sentence)
+        json_graph = json.loads(json_str.replace("'", "\""))
+    except:
+        # In case dataset has a NaN Error
+        print(f"Caught NaN Error, returning random adjacency matrix in graph index {graph_index}")
+        adjacency_matrix = np.random.randint(0, 2, (MAX_CONCEPT_HIERARCHY_SIZE, MAX_CONCEPT_HIERARCHY_SIZE))
+        feature_matrix = np.random.random((MAX_CONCEPT_HIERARCHY_SIZE, MAX_CONCEPT_HIERARCHY_SIZE))
+        return feature_matrix, adjacency_matrix
+    # json_graph = json.load(open(os.path.join(data_path, "video_transcripts_with_hierarchy_1701550479.csv")))
+
+    model = Word2Vec([tokens], vector_size=MAX_CONCEPT_HIERARCHY_SIZE, window=5, min_count=1, workers=4)
+    # node_embedding = model.wv[token]
+    def add_nodes_edges(graph, node, parent=None):
+        # Assign a unique identifier to each node using id(node)
+        # node_num = np.random.randint(1000, 9999)
+        node_id = f"{node['activity']}_{id(node)}"
+        # node_id = f"{node['activity']}_{node_num}"
+        
+        # Add the current node to the graph
+        if parent: graph.add_edge(parent, node_id)
+        graph.add_node(node_id, primary_concept=get_word_embedding(node["primary_concept"], model))
+
+        # If there are supporting concepts, add them as leaf nodes
+        for supporting_concept in node.get("supporting_concepts", []):
+            supporting_id = f"{supporting_concept}_{id(node)}"
+            supporting_id = f"{supporting_concept}_{id(node)}"
+            # supporting_id = supporting_id[:-3]
+            # supporting_id = f"{supporting_concept}_{node_num}"
+            
+            graph.add_node(supporting_id, primary_concept=get_word_embedding(supporting_concept, model))
+            graph.add_edge(node_id, supporting_id)
+
+        # If there are activities, recursively add them as sub-trees
+        for activity in node.get("activities", []):
+            activity_id = f"{activity['activity']}_{id(activity)}"
+            # activity_num = np.random.randint(1000, 9999)
+            # activity_id = f"{activity['activity']}_{activity_num}"
+            graph.add_edge(node_id, activity_id)
+            add_nodes_edges(graph, activity, parent=node_id)
+
+    # Create a directed graph
+    G = nx.DiGraph()
+    # Add root node
+    root_node_id = "lesson"
+    root_primary_concept = "lesson"
+    G.add_node(root_node_id, primary_concept=model.wv[root_primary_concept])
+
+    for lesson in json_graph["lesson"]:
+        add_nodes_edges(G, lesson, parent=root_node_id)
+
+    # Visualize the tree structure
+    # pos = nx.spring_layout(G)
+    # nx.draw(G, pos, with_labels=True, font_weight='bold', node_size=700, node_color='skyblue', font_size=8)
+    # plt.show()
+
+    # # Convert the graph to an adjacency matrix
+    adjacency_matrix = nx.adjacency_matrix(G).toarray()
+    # NOTE: Networkx only gives upper triangular matrix, so we add the transpose to get the full adjacency matrix
+    symmetric_matrix = adjacency_matrix + adjacency_matrix.T
+    # Size of the expanded matrix
+    expanded_size = (MAX_CONCEPT_HIERARCHY_SIZE, MAX_CONCEPT_HIERARCHY_SIZE)
+
+    # Create an expanded matrix filled with zeros
+    expanded_matrix = np.zeros(expanded_size)
+
+    # Copy the original matrix into the top-left corner of the expanded matrix
+    expanded_matrix[:len(symmetric_matrix), :len(symmetric_matrix)] = symmetric_matrix
+    feature_dict = nx.get_node_attributes(G, 'primary_concept')
+    feature_matrix = np.array([feature_dict[node] for node in G.nodes()])
+    # expanded_feature_matrix = np.zeros((MAX_CONCEPT_HIERARCHY_SIZE, FEATURE_VECTOR_DIMENSION))
+    expanded_feature_matrix = np.random.random(expanded_size)
+    
+    expanded_feature_matrix[:len(feature_matrix), :len(feature_matrix[0])] = feature_matrix
+    expanded_feature_matrix = min_max_normalize(expanded_feature_matrix)
+    # print("MIN MAX NORMALIZING FEATURE MATRIX: ", expanded_feature_matrix)
+    import logging
+    logging.info("RANDOMLY INITIALIZED FEATURE MATRIX: ", expanded_feature_matrix)
+    return expanded_matrix, expanded_feature_matrix
+
 
 def get_adjacency_matrix_cam_can(threshold : float, graph_index : int, data_path : str, use_super_node : bool = False) -> List[List[int]]:
     """

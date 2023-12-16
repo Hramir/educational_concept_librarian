@@ -1,5 +1,62 @@
-Great work on producing this JSON summary of the video transcript! Now, please provide a new version of the same JSON, reconciling the names of the concepts in the JSON with the list of concepts below. No concept from the current JSON should be removed, but if there is an equivalent or extremely similar concept in the list below, please replace it with the one from the list. For example, “dot product” and “scalar product” refer to the same operation, so if “dot product” was in the list, it could replace any instances of “scalar product” in the JSON. However, in other cases, the same mathematical idea might be conceptualized in two different ways, in which case they should be considered separate concepts: for example, “matrix-vector multiplication” and “linear transformation” would be considered separate concepts. Please use your best judgment. Here is the list of concepts to be reconciled: 
+Your task is to analyze a JSON-formatted hierarchical representation of the structure of an educational video transcript. Please copy and paste the JSON and then modify it to reconcile the names of the primary and supporting concepts with the standardized concept library below. For every primary_concept and every element of supporting_concepts lists in the JSON, carefully look through the provided standardized concept library and check whether there is an equivalent concept already in the library. If you find an equivalent concept in the standardized concept library, use that to replace the original concept name in the JSON. 
+
+For example, “dot product” and “scalar product” refer to exactly the same thing, so if “dot product” is already in the standardized concept library, it could replace any instances of “scalar product” in the JSON. However, in other cases, the same mathematical idea might be conceptualized in two different ways, in which case they should be considered separate concepts: for example, “matrix-vector multiplication” and “linear transformation” would be considered separate concepts and one should not replace the other. Please use your best judgment.
+
+Let's first work through an example. For the sake of this example only, let's imagine that our standardized concept library is the following: 
+```
+["vector", "matrix", "sum", "dot product", "angle between vectors", "eigenvector", "matrix multiplication", "change of basis"]
+```
+
+A JSON representation of a very short and simple video about dot products might look like the following: 
+```json
+{
+  "lesson": [
+    {
+      "activity": "definition",
+      "primary_concept": "scalar product",
+      "supporting_concepts": ["vectors", "addition", "multiplication"],
+      "activities": []
+    },
+    {
+      "activity": "visualization",
+      "primary_concept": "scalar product",
+      "supporting_concepts": ["vectors", "projection" "angle between two vectors"],
+      "activities": []
+    },
+  ]
+}
+```
+
+A correct response would replace "scalar product" with "dot product" from the standardized concept library in our example. We would also replace "angle between two vectors" with "angle between vectors", replace "addition" with "sum", and replace "vectors" with "vector". Note that we would **not** replace "multiplication" with "matrix multiplication" because these are different concepts even though they are related to each other. So our response would be the following: 
+
+```json
+{
+  "lesson": [
+    {
+      "activity": "definition",
+      "primary_concept": "dot product",
+      "supporting_concepts": ["vector", "sum", "multiplication"],
+      "activities": []
+    },
+    {
+      "activity": "visualization",
+      "primary_concept": "dot product",
+      "supporting_concepts": ["vector", "projection" "angle between vectors"],
+      "activities": []
+    },
+  ]
+}
+```
+
+If the standardized concept library is empty, or doesn't contain any concepts that are very similar to any of the primary or supporting concepts in the JSON, keep the JSON exactly as it is. Only replace concept names in the JSON with items from the standardized concept library in cases where they are equivalent or very similar. Crucially, the structure of the new JSON should be **exactly** the same as the JSON above for compatibility reasons, with **only** concept names changed where appropriate. No primary concepts, supporting concepts, or activities should be added or removed.
+
+Here is the standardized concept library we will be using: 
 ```
 <concept_library>
 ```
-Please provide only the JSON, with no accompanying explanation or other text. 
+
+And here is the summary and JSON representation of the video: 
+
+<response_1>
+
+Please provide only the edited JSON in your response, with no accompanying explanation or other text. 

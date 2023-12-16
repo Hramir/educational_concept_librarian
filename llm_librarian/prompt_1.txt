@@ -1,31 +1,30 @@
-Please carefully read the following transcript of an educational YouTube video, and refer to it for the following analysis: 
+Your task is to construct a hierarchical representation (in JSON format) of a transcript from an educational YouTube video, in terms of "activities" and "concepts.” The video is composed of one or more teaching “activities.” The complete set of activities is as follows: 
+1. “definition”: introducing and explaining a new concept or idea
+2. “example”: providing an example that illustrates or applies a concept or idea
+3. “visualization”: using a graph, image, animation, or other visualization to illustrate a concept or idea
+4. “application”: introducing or discussing a motivating application for a concept or idea
+5. “analogy”: drawing an analogy between a new concept or idea and something else the student is likely to be already familiar with. 
+6. "review": reviewing a concept that the student is expected to have some familiarity with already. 
+7. “additional resources”: referring to additional resources outside the current video. 
 
-“
-<transcript>
-”
+Each activity in the video is associated with a single "primary concept," the concept that the activity aims to teach or improve the student’s understanding of. For example, a “definition” of matrix multiplication would have “matrix multiplication” as the primary concept. We will analyze the transcript of a video that teaches the student something related to linear algebra, so examples of suitable concepts would be “dot product”, “linear independence”, “eigenvector”, “change of basis”, etc. Here are a few rules for the names of concepts: 
+1. Avoid plurals. E.g., use “eigenvalue” and "square matrix", not “eigenvalues" and "square matrices". 
+2. Use spaces between words, not underscores. E.g., use “dot product” not “dot_product”.
+3. Use lower-case only, e.g. "eigenvalue" not "Eigenvalue".
+4. We want to use concept names that can be reused when analyzing other video transcripts. Avoid overly specific concept names (e.g., “simplification of transformation matrix computation”), and use relatively general concept names without unnecessary details (e.g., use “solving linear systems”, not “solving linear systems in three dimensions”).
+5. Again for the sake of re-usable concepts, avoid concept names that are clearly just about specific examples or applications. E.g., use "matrix" not "matrix B", and avoid concepts like “weather modeling” or "volume of a cylinder". For “example” activities, only include the underlying concepts used to solve the example problem, not the details of the example itself. 
+6. Avoid concept names that refer to an activity, such as “application example” or “matrix algebra applications” (in the latter case, you could use “matrix algebra” as part of an “application” activity).
+7. If in doubt, it is better to leave a concept out of the JSON entirely than to add a rarely discussed or highly idiosyncratic concept. 
 
-Your task is to construct a hierarchical representation of the video transcript (represented in JSON format), using a library of “activities” and “concepts.” The video is composed of one or more teaching “activities.” The complete set of activities is as follows: 
-“definition”: introducing and explaining a new concept or idea
-“example”: providing an example that illustrates or applies a concept or idea
-“visualization”: using a graph, image, animation, or other visualization to illustrate a concept or idea
-“application”: introducing or discussing a motivating application for a concept or idea
-“analogy”: drawing an analogy between a new concept or idea and something else the student is likely to be already familiar with. 
-“additional resources”: referring to additional resources outside the current video. 
+Each activity may also contain one or more supporting concepts that are used to explain the primary concept. For example, a “definition” activity with the primary concept “matrix multiplication” might use the supporting concepts “row”, “column”, and “dot product” to explain how to calculate each element in the matrix by taking the dot product of rows and columns. Supporting concept names follow the same naming rules as primary concepts. 
 
-Each activity is associated with a single "primary concept," the concept that activity aims to teach or improve the student’s understanding of. For example, a “definition” of matrix multiplication would have “matrix multiplication” as the primary concept. The video that this transcript came from teaches the student something within the subject of linear algebra, so the names of concepts are the names of well-known concepts in linear algebra such as “dot product”, “linear independence”, “eigenvectors”, “change of basis”, etc. Here are a few rules for naming the concepts: 
-1. Avoid plurals. E.g., use “eigenvalue”, not “eigenvalues", and use "vector space" instead of "vector spaces".
-2. Avoid concept names that are specific to an example. E.g., use “matrix” not “matrix B.”
-3. Use spaces, not underscores. E.g., use “dot product” not “dot_product.”
-4. Use lower-case only.
-5. We want to use concept names that can be reused in other video transcripts. Avoid overly specific concept names, or concept names that add unnecessary details. E.g., use “solving systems of linear equations”, not “solving systems of linear equations in three dimensions” and avoid overly specific names like “simplification of transformation matrix computation”
-6. Avoid concept names that are clearly just about specific examples or applications. E.g., “weather modeling”, “Indian Institute of Technology entrance exam.” For “example” activities, only include the concept(s) used to solve the example problem, not the details of the example itself. 
-7. Avoid concept names that refer to an activity, such as “application example” or “matrix algebra applications” (in the latter case, you could use “matrix algebra” as part of an “application” activity).
+Each of the activities can also contain one or more activities within them, drawn from the same list above ("definition", "example", "visualization", "application", "analogy", "review", or "additional resources"). For example, the instructor might work through an example problem that involves introducing a motivating application and also uses a graph as part of the problem solving process: this would be an “example” activity that includes “application” and “visualization” activities. 
 
-Each activity may also contain one or more supporting concepts that are used to explain the primary concept. For example, a “definition” activity with the primary concept “matrix multiplication” might use the supporting concepts “rows”, “columns”, and “dot product” to explain how to calculate each element in the matrix. Supporting concepts should be written as lists, like [“rows”, “columns”, “dot product”].
+As an example to guide your analysis, imagine a video transcript that is summarized as follows: 
 
-Each of the activities can also contain one or more activities within them, drawn from the same library of activities above. For example, the instructor might work through an example that involves a motivating application and also uses a graph to help solve the problem: this would be an “example” activity that includes “application” and “visualization” activities. 
+"This video introduces the dot product. The instructor begins by defining the dot product, referring to vector multiplication and linear independence to explain what a dot product is. The instructor then uses a graph visualization to shows how a dot product can be seen as the projection of one vector onto the other multiplied by the magnitude of the other vector. The instructor finishes by introducing a motivating application of the dot product: finding the angle between two vectors. While discussing this application, the instructor shows a visualization of the angle between two vectors, and then works through an example problem using a formula that includes vector magnitudes and the cosine function, explaining how the formula relates to projecting one vector onto another."
 
-For example, a complete hierarchical activity representation of a video (**not** the video you will be analyzing, but a different example video) might look like this: 
+A complete hierarchical representation of the example video transcript summarized above would look similar to the following: 
 
 json```
 {
@@ -33,30 +32,30 @@ json```
     {
       "activity": "definition",
       "primary_concept": "dot product",
-      "supporting_concepts": ["vector", "addition", "multiplication"],
+      "supporting_concepts": ["vector", "addition", "multiplication", "magnitude"],
       "activities": []
     },
     {
       "activity": "visualization",
-      "primary_concept": "dot_product",
-      "supporting_concepts": ["vector", "projection"],
+      "primary_concept": "dot product",
+      "supporting_concepts": ["vector", "projection", "multiplication"],
       "activities": []
     },
     {
       "activity": "application",
-      "primary_concept": "dot_product",
+      "primary_concept": "dot product",
       "supporting_concepts": ["vector", "angle between vectors"],
-      "activities": [
+      "activities": [        
         {
           "activity": "visualization",
           "primary_concept": "dot product",
-          "supporting_concepts": ["vector", "angle between vectors", "projection"],
+          "supporting_concepts": ["vector", "angle between vectors"],
           "activities": []
         },
         {
           "activity": "example",
           "primary_concept": "dot product",
-          "supporting_concepts": ["vector", "angle between vectors", "cosine"],
+          "supporting_concepts": ["vector", "angle between vectors", "projection", "cosine", "magnitude"],
           "activities": []
         }
       ]
@@ -64,7 +63,10 @@ json```
   ]
 }
 ```
+Now that we've seen an example, here is the video transcript you will be analyzing: 
 
-In this example, the video opens with a definition of the dot product, using the concepts of vector multiplication and linear independence in the initial explanation. The instructor then makes use of a visualization that shows how a dot product can be seen as a projection of one vector onto another. The video finishes with an example. The example includes introducing a motivating application, which involves using the dot product to find the angle between two vectors, and therefore invokes the concepts of “dot product” and “angle between two vectors”. Within the context of this same example, the instructor then uses a visualization to show how the dot product is related to the angle between two vectors. 
+“
+<transcript>
+”
 
-Given this example and the transcript above, you are ready to construct a hierarchical activity representation of the video transcript. Begin by writing down a comprehensive summary of the video. Then, use the summary to construct the JSON, making sure to include all activities, primary and supporting concepts associated with each activity, and sub-activities within each activity. Let’s take a deep breath and work on this analysis step by step.
+Begin by writing down a comprehensive summary of the video. Then construct the JSON, making sure to include all activities, primary and supporting concepts associated with each activity, and any sub-activities within each activity. Let’s take a deep breath and work on this analysis step by step.

@@ -11,7 +11,7 @@ import os
 import sys
 parent_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.append(parent_dir)
-from utils.transcript_df import process_directory
+from utils.transcript_df_old import process_directory
 
 # Ensure you have the NLTK data downloaded
 nltk.download('stopwords')

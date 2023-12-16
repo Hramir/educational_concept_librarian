@@ -89,6 +89,33 @@ def get_embeddings_df(hyperboloid_embeddings):
                                 )
     return embeddings_df   
 
+def get_embeddings_df_library_learning(hyperboloid_embeddings):
+    """
+    Returns: 
+    embeddings_df with columns 
+        x : x coordinate in Poincare Disk :float, 
+        y : y coordinate in Poincare Disk :float, 
+        label : cortex id number :int [1 - 22], 
+        id : ROI id number :int [0 - 359],
+        LR : left or right hemisphere embedding symbolized by 'L' or 'R' :str
+    """
+    # hcp_atlas_df = get_hcp_atlas_df()
+    
+    # region_indices_to_cortex_ids = {i : hcp_atlas_df['Cortex_ID'][i] for i in range(NUM_ROIS)}
+    c = 1.
+    torch_embeddings = torch.from_numpy(hyperboloid_embeddings)
+    poincare_embeddings = [to_poincare(torch_embedding, c) for torch_embedding in torch_embeddings]
+    from utils.constants_utils import MAX_CONCEPT_HIERARCHY_SIZE
+    embeddings_df = pd.DataFrame({'x': [poincare_embeddings[i][0] for i in range(MAX_CONCEPT_HIERARCHY_SIZE)], 
+                                        'y': [poincare_embeddings[i][1] for i in range(MAX_CONCEPT_HIERARCHY_SIZE)],
+                                        # 'label': [region_indices_to_cortex_ids[i] for i in range(NUM_ROIS)],
+                                        'label': [i for i in range(MAX_CONCEPT_HIERARCHY_SIZE)], 
+                                        'id': [i for i in range(MAX_CONCEPT_HIERARCHY_SIZE)]}
+                                        # 'LR': hcp_atlas_df['LR']}
+                                )
+    return embeddings_df   
+
+
 def get_meg_embeddings_df(hyperboloid_embeddings):
     # aal_atlas_df = get_meg_atlas_df()
     
