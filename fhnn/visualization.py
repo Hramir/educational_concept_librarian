@@ -398,6 +398,79 @@ def get_edges(adj_matrix):
                     edges.append([i, j])
         return edges
 
+def plot_embeddings_library_learning(embeddings, title=None, use_scale=False, use_cluster_metrics=False, use_centroids=False):
+    from utils.access_embeddings_utils import get_embeddings_df_library_learning
+    from utils.constants_utils import CONCEPT_HIERARCHY_COLORS
+    embeddings_df = get_embeddings_df_library_learning(embeddings) 
+    # Create the legend
+    if use_scale: embeddings_df = scale_embeddings_df_to_poincare_disk(embeddings_df)
+    for i in embeddings_df.label.unique():
+        # emb_L = embeddings_df.loc[(embeddings_df.label == i)]
+        plt.scatter(embeddings_df.loc[(embeddings_df.label == i), 'x'], 
+                    embeddings_df.loc[(embeddings_df.label == i), 'y'], 
+                    color = CONCEPT_HIERARCHY_COLORS[i],
+                    s = 50, 
+                    marker = "v")
+                    # label=i)
+        
+                    
+    # Shrink current axis by 20%
+    ax = plt.gca()
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+    # Put a legend to the right of the current axis
+    # ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    
+    circ = plt.Circle((0, 0), 
+                    radius=1, 
+                    edgecolor='black', 
+                    facecolor='None', 
+                    linewidth=3, 
+                    alpha=0.5)
+    ax.add_patch(circ)
+    # plot_edges = False
+    # TODO: Need to include cam_can adjacency matrix as input to make plotting edges possible  
+    # if plot_edges:
+    #     edge_list_0 = get_edges(adj)
+    #     for i in range(len(edge_list_0)):
+    #         x1 = embeddings_df.loc[(embeddings_df.id == edge_list_0[i][0]), ['x', 'y']].values[0]
+    #         x2 = embeddings_df.loc[(embeddings_df.id == edge_list_0[i][1]), ['x', 'y']].values[0]
+    #         _ = plt.plot([x1[0], x2[0]], [x1[1], x2[1]], '--', c='black', linewidth=1, alpha=0.25)
+    if title != None:
+        plt.title(title, size=16)
+        # plt.savefig(f"{title}.png")
+    
+    # permuted_colors = [COLORS[i] for i in embeddings_df.label.unique()]
+    if use_centroids:
+        embeddings_df_left = embeddings_df[embeddings_df.LR == "L"]
+        embeddings_df_right = embeddings_df[embeddings_df.LR == "R"]
+        embeddings_df_left_detensored = detensorify_embeddings_df(embeddings_df_left)
+        embeddings_df_right_detensored = detensorify_embeddings_df(embeddings_df_right)
+        # HK MEANS CENTROIDS
+        # clustering_left = plot_centroids(embeddings_df_left_detensored, is_left=True)
+        # clustering_right = plot_centroids(embeddings_df_right_detensored, is_left=False)
+
+        # embeddings_df_detensored = detensorify_embeddings_df(embeddings_df)
+        # plot_hyperbolic_radii(embeddings_df_detensored, 
+        #                     "Hyperbolic_Cluster_Radius_CamCan_Avg_276", 
+        #                     clustering, 
+        #                     permuted_colors=permuted_colors)
+        # plot_hyperbolic_cohesion(embeddings_df_detensored, 
+        #                         "Hyperbolic_Cluster_Cohesion_CamCan_Avg_276", 
+        #                         clustering,
+        #                         permuted_colors=permuted_colors)
+        # HK MEANS CENTROID RADII 
+        # plot_hyperbolic_radii_left_right(embeddings_df_left_detensored,
+        #                                 embeddings_df_right_detensored,  
+        #                                 clustering_left=clustering_left,
+        #                                 clustering_right=clustering_right,
+        #                                 use_diff_plot=True, 
+        #                                 permuted_colors=permuted_colors)
+        plot_avg_hyperbolic_radii_left_right(embeddings_df_left_detensored,
+                                        embeddings_df_right_detensored,  
+                                        use_diff_plot=True, 
+                                        permuted_colors=permuted_colors)
 
 def plot_embeddings(embeddings, title=None, use_scale=False, use_cluster_metrics=False, use_centroids=False):
     # Create a list of labels for the legend

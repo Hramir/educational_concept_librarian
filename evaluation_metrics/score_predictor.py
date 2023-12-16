@@ -25,6 +25,7 @@ TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = 0.70, 0.20, 0.10
 transcript_df = pd.read_csv(TRANSCRIPT_DATA_PATH)
 view_count_labels = transcript_df['view_count']
 score_labels = view_count_labels
+
 class Regression_Model:
     def __init__(self, transcript_source : str, transcript_num : str, projection_type: str ="HR", dataset: str ="YouTube"):
         log_path = os.path.join("logs", "lp", transcript_source, transcript_num)
@@ -38,8 +39,10 @@ class Regression_Model:
         if dataset not in ["YouTube", "MITOCW"]:
             raise ValueError("Dataset must be either YouTube or MITOCW")
         self.num_features = NUM_FEATURES if self.dataset == "YouTube" else NUM_FEATURES_WORD2VEC
-
     def project_embeddings(self, embeddings_list) -> np.ndarray:
+        if self.projection_type == "FLATTEN":
+            projected_embeddings = [embeddings.flatten() for embeddings in embeddings_list]
+            return np.array(projected_embeddings)
         projection_function = self.get_projection_function()
         projected_embeddings = [projection_function(embeddings) for embeddings in tqdm(embeddings_list)]
         np_projected_embeddings = np.array(projected_embeddings)
@@ -57,9 +60,11 @@ class Regression_Model:
     def get_projection_function(self):
         if self.projection_type == "HR": 
             def inner_product(u, v):
+                print("THIS IS V, ", v)
                 return -u[0]*v[0] + np.dot(u[1:], v[1:]) 
             def get_hyperbolic_radius(embeddings):
                 origin = np.array([1, 0, 0]) # .to(self.args.device)
+                print("THIS IS EMBEDDINGS : ", embeddings)
                 return [np.arccosh(-1 * inner_product(origin, coord)) for coord in embeddings]
             
             # def get_squared_radius(embeddings):
@@ -99,9 +104,10 @@ class Regression_Model:
         assert not set(train_split_indices).intersection(test_split_indices), "Train and Test Sets should not overlap"
         assert not set(val_split_indices).intersection(test_split_indices), "Val and Test Sets should not overlap"
         return train_split_indices, val_split_indices, test_split_indices
-
+        
 class Score_Predictor(Regression_Model):
-    def __init__(self, transcript_source : str, transcript_num : str, type_of_regression: str, projection_type: str="HR", architecture: str="FHNN", dataset: str="YouTube", alpha=100):
+    def __init__(self, transcript_source : str, transcript_num : str, type_of_regression: str, 
+                projection_type: str="HR", embeddings_method: str = "LDA", dataset: str="YouTube", alpha=100):
         """
         1. Evaluate Regression Model: MSE
         
@@ -109,7 +115,16 @@ class Score_Predictor(Regression_Model):
         """
         super().__init__(transcript_source, transcript_num, projection_type, dataset)
         type_of_regression = type_of_regression.lower()
-        self.architecture = architecture
+        self.embeddings_method = embeddings_method
+        if self.embeddings_method == "hyperbolic":
+            self.embeddings_dir = os.path.join(os.getcwd(), "fhnn", "logs", "lp", transcript_source, transcript_num, "embeddings")
+
+            self.train_indices = self.get_hyperbolic_split_indices('train')
+            self.val_indices = self.get_hyperbolic_split_indices('val')
+            self.test_indices = self.get_hyperbolic_split_indices('test')
+            print("TRAIN INDICES", self.train_indices)
+            from fhnn.utils.constants_utils import MAX_CONCEPT_HIERARCHY_SIZE
+            self.num_features = MAX_CONCEPT_HIERARCHY_SIZE
         self.dataset = dataset
         if type_of_regression == "linear":
             self.regressor_model = LinearRegression()
@@ -153,7 +168,15 @@ class Score_Predictor(Regression_Model):
             else "Random Forest" if type(self.regressor_model) == RandomForestRegressor \
             else "Feed-Forward-NN" if type(self.regressor_model) == Neural_Network_Regressor \
             else "Unknown"
-        
+    def get_hyperbolic_split_indices(self, split_str: str):
+        split_indices = []
+        for split_embeddings_dir in os.listdir(self.embeddings_dir):
+            if split_str not in split_embeddings_dir: continue
+            _, _, split_index_str = split_embeddings_dir.split("_")
+            split_index, _ = split_index_str.split(".")
+            split_index = int(split_index)
+            split_indices.append(split_index)
+        return split_indices  
     def regression(self) -> float:
         self.train()
         predicted_scores, mse_score, correlation = self.test()
@@ -167,32 +190,63 @@ class Score_Predictor(Regression_Model):
         return mse_score, correlation
     def visualize_model_parameters(self, use_jet=False):
         # plt.figure(figsize = (10, 10))
-        plt.figure()
-        plt.title(f"{self.model_str} Model with Projection {self.projection_type} Trained Parameters")
-        plt.ylabel('Parameter Value')
-        plt.xlabel('Topic Index')
-        x = np.arange(self.num_features)
-        cmap = plt.cm.jet        
-        
-        if type(self.regressor_model) == RandomForestRegressor:
-            plt.bar(x, self.regressor_model.feature_importances_, color=cmap(x / len(x)))
-            return 
-        elif self.model_str == "neural_network":
-            # TODO: Decide if want to use NN regression
-            if type(self.regressor_model) == Neural_Network_Regressor:
-                print(f"Model Parameters : {[tensor.shape for tensor in self.regressor_model.parameters()]}")
-                row_sums = [torch.sum(tensor, dim=0).detach().numpy() for tensor in self.regressor_model.parameters()]
-                print("ROW SUMS : ", row_sums)
-                x = np.arange(len(row_sums[0]))
-                plt.bar(x, row_sums[0], color=cmap(x / len(x)))
-                return
+        if self.embeddings_method == "LDA":
+            plt.figure()
+            plt.title(f"{self.model_str} Model with Projection {self.projection_type} Trained Parameters")
+            plt.ylabel('Parameter Value')
+            plt.xlabel('Topic Index')
+            x = np.arange(self.num_features)
+            cmap = plt.cm.jet        
             
-                # plt.imshow(self.regressor_model.parameters())
+            if type(self.regressor_model) == RandomForestRegressor:
+                plt.bar(x, self.regressor_model.feature_importances_, color=cmap(x / len(x)))
+                return 
+            elif self.model_str == "neural_network":
+                # TODO: Decide if want to use NN regression
+                if type(self.regressor_model) == Neural_Network_Regressor:
+                    print(f"Model Parameters : {[tensor.shape for tensor in self.regressor_model.parameters()]}")
+                    row_sums = [torch.sum(tensor, dim=0).detach().numpy() for tensor in self.regressor_model.parameters()]
+                    print("ROW SUMS : ", row_sums)
+                    x = np.arange(len(row_sums[0]))
+                    plt.bar(x, row_sums[0], color=cmap(x / len(x)))
+                    return
+                
+                    # plt.imshow(self.regressor_model.parameters())
+                
+            if use_jet:
+                plt.bar(x, self.regressor_model.coef_, color=cmap(x / len(x)))
+            else:
+                plt.bar(x, self.regressor_model.coef_)
+        if self.embeddings_method == "hyperbolic":
+            plt.figure()
+            plt.title(f"{self.model_str} Model with Projection {self.projection_type} Trained Parameters")
+            plt.ylabel('Parameter Value')
+            plt.xlabel('Concept Index')
+            x = np.arange(self.num_features)
+            NUM_COORDINATES = 3
+            if self.projection_type == "FLATTEN": x = np.arange(NUM_COORDINATES * self.num_features)
+                
+            cmap = plt.cm.jet        
             
-        if use_jet:
-            plt.bar(x, self.regressor_model.coef_, color=cmap(x / len(x)))
-        else:
-            plt.bar(x, self.regressor_model.coef_)
+            if type(self.regressor_model) == RandomForestRegressor:
+                plt.bar(x, self.regressor_model.feature_importances_, color=cmap(x / len(x)))
+                return 
+            elif self.model_str == "neural_network":
+                # TODO: Decide if want to use NN regression
+                if type(self.regressor_model) == Neural_Network_Regressor:
+                    print(f"Model Parameters : {[tensor.shape for tensor in self.regressor_model.parameters()]}")
+                    row_sums = [torch.sum(tensor, dim=0).detach().numpy() for tensor in self.regressor_model.parameters()]
+                    print("ROW SUMS : ", row_sums)
+                    x = np.arange(len(row_sums[0]))
+                    plt.bar(x, row_sums[0], color=cmap(x / len(x)))
+                    return
+                
+                    # plt.imshow(self.regressor_model.parameters())
+                
+            if use_jet:
+                plt.bar(x, self.regressor_model.coef_, color=cmap(x / len(x)))
+            else:
+                plt.bar(x, self.regressor_model.coef_)
 
     def plot_score_labels_vs_predicted_scores(self, predicted_scores):
         # Generate x-axis values
@@ -285,13 +339,26 @@ class Score_Predictor(Regression_Model):
 
         topics_values = topics_df.values.tolist()
         topics_arrays = [np.array(row) for row in topics_values]
-        for val_index in self.val_indices:
-            val_embeddings = topics_arrays[val_index]
-            val_embeddings_list.append(val_embeddings)
-        for test_index in self.test_indices:
-            test_embeddings = topics_arrays[test_index]            
-            test_embeddings_list.append(test_embeddings)
         
+        for val_index in self.val_indices:
+            if self.embeddings_method == "LDA":
+                val_embeddings = topics_arrays[val_index]
+                val_embeddings_list.append(val_embeddings)
+            elif self.embeddings_method == "hyperbolic":
+                val_embeddings = np.load(os.path.join(self.embeddings_dir, f"embeddings_val_{val_index}.npy"))
+                val_embeddings_list.append(val_embeddings)
+            else:
+                raise AssertionError(f"Invalid Embeddings Method! {self.embeddings_method} must be either LDA or hyperbolic")
+        for test_index in self.test_indices:
+            if self.embeddings_method == "LDA":
+                test_embeddings = topics_arrays[test_index]            
+                test_embeddings_list.append(test_embeddings)
+            elif self.embeddings_method == "hyperbolic":
+                test_embeddings = np.load(os.path.join(self.embeddings_dir, f"embeddings_test_{test_index}.npy"))
+                test_embeddings_list.append(test_embeddings)
+            else:
+                raise AssertionError(f"Invalid Embeddings Method! {self.embeddings_method} must be either LDA or hyperbolic")
+
         
         if type(self.regressor_model) == LinearRegression \
             or type(self.regressor_model) == Ridge \
@@ -362,15 +429,33 @@ class Score_Predictor(Regression_Model):
         topics_arrays = [np.array(row) for row in topics_values]
 
         for train_index in self.train_indices:
-            train_embeddings = topics_arrays[train_index]            
-            train_embeddings_list.append(train_embeddings)
+            if self.embeddings_method == "LDA":
+                train_embeddings = topics_arrays[train_index]            
+                train_embeddings_list.append(train_embeddings)
+            elif self.embeddings_method == "hyperbolic":
+                train_embeddings = np.load(os.path.join(self.embeddings_dir, f"embeddings_train_{train_index}.npy"))
+                train_embeddings_list.append(train_embeddings)
+            
+            else:
+                raise AssertionError(f"Invalid Embeddings Method! {self.embeddings_method} must be either LDA or hyperbolic")
         for val_index in self.val_indices:
-            val_embeddings = topics_arrays[val_index]
-            val_embeddings_list.append(val_embeddings)
+            if self.embeddings_method == "LDA":
+                val_embeddings = topics_arrays[val_index]
+                val_embeddings_list.append(val_embeddings)
+            elif self.embeddings_method == "hyperbolic":
+                val_embeddings = np.load(os.path.join(self.embeddings_dir, f"embeddings_val_{val_index}.npy"))
+                val_embeddings_list.append(val_embeddings)
+            else:
+                raise AssertionError(f"Invalid Embeddings Method! {self.embeddings_method} must be either LDA or hyperbolic")
         for test_index in self.test_indices:
-            test_embeddings = topics_arrays[test_index]            
-            test_embeddings_list.append(test_embeddings)
-        
+            if self.embeddings_method == "LDA":
+                test_embeddings = topics_arrays[test_index]            
+                test_embeddings_list.append(test_embeddings)
+            elif self.embeddings_method == "hyperbolic":
+                test_embeddings = np.load(os.path.join(self.embeddings_dir, f"embeddings_test_{test_index}.npy"))
+                test_embeddings_list.append(test_embeddings)
+            else:
+                raise AssertionError(f"Invalid Embeddings Method! {self.embeddings_method} must be either LDA or hyperbolic")
         train_embeddings_list += val_embeddings_list
         # TODO: Change back to train + val
         # train_embeddings_list += test_embeddings_list
