@@ -6,6 +6,7 @@ The rise of digital education platforms comes with an increase in quantity of on
 
 ## Overview of code
 * Run data_scraper/playlist_data_scraper.py to collect the dataset from YouTube. Note that our dataset is also available for direct download (see "accompanying dataset" below)
+* Run data_scraper/comment_sentiment.py to perform sentiment analysis on comment data and calculate average sentiment (Use parse_csv() to operate on existing csv, parse_current_directory() to generate csv from .txt files)
 * Feature extraction for the baseline Transcript-LDA model (LDA topic modeling on video transcripts) is done using lda_baseline/lda.py
 * Extract activity-concept hierarchies using the OpenAI API: llm_librarian/gpt_librarian_v2.py
 * Curate the concept library with BERT, and perform hypothesis tests, using an array of scripts in library_postprocessing/. See also the detailed readme on this part of the codebase, along with the resulting processed dataset, within the google drive folder linked under "accompanying dataset" below
@@ -13,6 +14,7 @@ The rise of digital education platforms comes with an increase in quantity of on
 * Extract Fully Hyperbolic Neural Network (FHNN) graph-based features using code in fhnn/
 * Extract Concept-BERT graph-based features using code in sentence_representation/
 * Run supervised regression models to predict like-to-view ratio and average comment sentiment using transcript_score_regression.ipynb
+* Finetune BERT for regression using finetune.py in sentence_representation/ (Experiments used A100 GPU for BERT fine-tuning, weaker GPUs/CPU can be used to fine-tune but will greatly increase runtime)
 
 ## Accompanying dataset
 * A fully processed version of our dataset, with activity-concept graphs and concept libraries, is available at this link: https://drive.google.com/drive/folders/182Ij2RDoyg_572y84zMUnoIidvcRTIzh?usp=sharing
