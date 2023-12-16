@@ -44,7 +44,7 @@ class BaseModel(nn.Module):
             x = torch.cat([o[:, 0:1], x], dim=1)
             if self.manifold.name == 'Lorentz':
                 x = self.manifold.expmap0(x)
-        print(x.shape, adj.shape, "SHAPE OF FEATURES AND ADJACECNY MATRIX")
+        
         h = self.encoder.encode(x, adj)
         return h
 

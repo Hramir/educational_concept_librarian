@@ -1,4 +1,7 @@
 """Data utils functions for pre-processing and data loading."""
+from gensim.models import Word2Vec
+from nltk.tokenize import word_tokenize
+import logging
 import os
 import pickle as pkl
 import sys
@@ -24,10 +27,18 @@ MEG_PLV_METRIC_INDEX = 0
 MEG_BAND_ALPHA_INDEX = 1
 THRESHOLD_MEG = 0.329
 NUM_SBJS_MEG = 180
-
+BERT_EMBEDDING_DIMENSION = 768
 TOTAL_SBJS = 592
 NUM_SBJS = TOTAL_SBJS - 5 # 587 subjects after filtering out numerically unstable PLV matrices
 # Remember that 5 subjects excluded due to filtering out Numerically Unstable PLV Matrices
+# TODO: FIX SCORE_LABELS
+import pandas as pd
+TRANSCRIPT_DATA_PATH = 'video_transcripts_with_hierarchy_mapped_truncated_conceptual_lda_1702443584.csv'
+
+transcript_df = pd.read_csv(os.path.join(os.getcwd(), 'data', 'library_learning', TRANSCRIPT_DATA_PATH))
+view_count_labels = transcript_df['view_count']
+ratio_labels = transcript_df['like_to_view_ratio']
+score_labels = ratio_labels
 
 def load_data(args, datapath):
     if args.dataset == 'library_learning':
@@ -172,7 +183,10 @@ def mask_edges(adj, val_prop, test_prop, seed):
     val_edges_false, test_edges_false = neg_edges[:n_val], neg_edges[n_val:n_test + n_val]
     train_edges_false = np.concatenate([neg_edges, val_edges, test_edges], axis=0)
     adj_train = sp.csr_matrix((np.ones(train_edges.shape[0]), (train_edges[:, 0], train_edges[:, 1])), shape=adj.shape)
+    # import logging
+    # logging.info(f"THIS IS ADJACENCY MATRIX: {adj_train.shape}")
     adj_train = adj_train + adj_train.T
+    
 
     # Training with 100 % edges visible since will do graph iteration and train, val, test splits will come from graphs
     train_edges = pos_edges
@@ -589,7 +603,8 @@ def get_adj_mat_dataset_splits_with_features_and_score_labels_and_indices(data_p
         adj_mat, feat_mat = get_adjacency_and_feature_matrices_library_learning(i, data_path)
         test_split_adj_matrices.append(adj_mat)
         test_feats.append(feat_mat)
-
+    logging.info(f"Using Feature Matrix : {test_feats[0].shape}")
+    logging.info(f"Using Feature Matrix : {test_feats[0]}")
     # train_feats = [np.eye(MAX_CONCEPT_HIERARCHY_SIZE) for train_adj_matrix in train_split_adj_matrices]
     # val_feats = [np.eye(MAX_CONCEPT_HIERARCHY_SIZE) for val_adj_matrix in val_split_adj_matrices]
     # test_feats = [np.eye(MAX_CONCEPT_HIERARCHY_SIZE) for test_adj_matrix in test_split_adj_matrices]
@@ -597,11 +612,7 @@ def get_adj_mat_dataset_splits_with_features_and_score_labels_and_indices(data_p
     # train_feats = [get_feature_matrix_library_learning(i, data_path) for i in train_split_indices]
     # val_feats = [get_feature_matrix_library_learning(i, data_path) for i in val_split_indices]
     # test_feats = [get_feature_matrix_library_learning(i, data_path) for i in test_split_indices]
-    # TODO: FIX SCORE_LABELS
-    import pandas as pd
-    transcript_df = pd.read_csv(os.path.join(os.getcwd(), 'data', 'library_learning', "video_transcripts_with_hierarchy_1701550479.csv"))
-    view_count_labels = transcript_df['view_count']
-    score_labels = view_count_labels
+    
     # score_labels = np.load(os.path.join(data_path, "score_labels.npy"))
     train_score_labels = [score_labels[i] for i in train_split_indices]
     val_score_labels = [score_labels[i] for i in val_split_indices]
@@ -835,8 +846,13 @@ def get_adjacency_matrix_library_learning(graph_index : int, data_path : str) ->
     """
     # First open csv file as pandas, then access pandas cell using graph_index, access activity_concept_hierarchy column
     # Then use json.loads to convert string to json, then access the adjacency matrix
-    video_transcripts_df = pd.read_csv(os.path.join(os.getcwd(), 'data', 'library_learning', 'video_transcripts_with_hierarchy_1701550479.csv'))
-    json_str = video_transcripts_df['activity_concept_hierarchy'][graph_index]
+    import json
+    import pandas as pd
+    
+    json_str = transcript_df['activity_concept_hierarchy'][graph_index]
+
+    # video_transcripts_df = pd.read_csv(os.path.join(os.getcwd(), 'data', 'library_learning', 'video_transcripts_with_hierarchy_1701550479.csv'))
+    # json_str = video_transcripts_df['activity_concept_hierarchy'][graph_index]
     # print("THIS IS JSON STR", json_str)
     try:
         json_graph = json.loads(json_str.replace("'", "\""))
@@ -899,29 +915,34 @@ def get_adjacency_matrix_library_learning(graph_index : int, data_path : str) ->
     expanded_matrix[:len(symmetric_matrix), :len(symmetric_matrix)] = symmetric_matrix
 
     return expanded_matrix
-
 def get_word_embedding(primary_concept, model):
-    primary_concept = primary_concept.lower()
-    primary_concept = primary_concept.replace("(", "")
-    primary_concept = primary_concept.replace(")", "")
-    primary_concept = primary_concept.replace(".", "")
-    primary_concept = primary_concept.replace(",", "")
-    try:
-        if " " in primary_concept:
-            words = primary_concept.split(" ")
-            primary_concept_node_embedding = np.zeros(MAX_CONCEPT_HIERARCHY_SIZE)
-            for word in words:
-                word_embedding = model.wv[word]
-                primary_concept_node_embedding += word_embedding
-                # NOTE: Should we be averaging the word embeddings when the primary concept/supporting concept is made up of multiple words?
-        else:
-            primary_concept_node_embedding = model.wv[primary_concept]
-    except:
-        print(f"Word not in vocabulary : {primary_concept}")
-        print("Returning random embedding")
-        primary_concept_node_embedding = np.random.random(MAX_CONCEPT_HIERARCHY_SIZE)
-    return primary_concept_node_embedding
+    
+    with open("BERT_embeddings_for_concepts_1702443584.pkl", 'rb') as file:
+        bert_embeddings_dict = pkl.load(file)
 
+    # an_example_embedding = bert_embeddings_dict["matrix"]
+    # primary_concept = primary_concept.lower()
+    # primary_concept = primary_concept.replace("(", "")
+    # primary_concept = primary_concept.replace(")", "")
+    # primary_concept = primary_concept.replace(".", "")
+    # primary_concept = primary_concept.replace(",", "")
+    # try:
+    #     if " " in primary_concept:
+    #         words = primary_concept.split(" ")
+    #         primary_concept_node_embedding = np.zeros(MAX_CONCEPT_HIERARCHY_SIZE)
+    #         for word in words:
+    #             word_embedding = model.wv[word]
+    #             primary_concept_node_embedding += word_embedding
+    #             # NOTE: Should we be averaging the word embeddings when the primary concept/supporting concept is made up of multiple words?
+    #     else:
+    #         primary_concept_node_embedding = model.wv[primary_concept]
+    # except:
+    #     print(f"Word not in vocabulary : {primary_concept}")
+    #     print("Returning random embedding")
+    #     primary_concept_node_embedding = np.random.random(MAX_CONCEPT_HIERARCHY_SIZE)
+    return bert_embeddings_dict[primary_concept]
+def standardize(concept):
+    return concept.lower().replace("_", " ").replace(" = ", "=").replace(" x ", "x").replace(" + ", "+").replace("^", "")
 def get_adjacency_and_feature_matrices_library_learning(graph_index ,data_path : str) -> List[List[int]]:
     """
     Create feature matrix JSON file and sentence embeddings file
@@ -931,8 +952,8 @@ def get_adjacency_and_feature_matrices_library_learning(graph_index ,data_path :
     # Then use json.loads to convert string to json, then access the adjacency matrix
     import json
     import pandas as pd
-    video_transcripts_df = pd.read_csv(os.path.join(os.getcwd(), 'data', 'library_learning', 'video_transcripts_with_hierarchy_1701550479.csv'))
-    json_str = video_transcripts_df['activity_concept_hierarchy'][graph_index]
+    
+    json_str = transcript_df['activity_concept_hierarchy'][graph_index]
 
 
     def make_sentence(st):
@@ -962,23 +983,28 @@ def get_adjacency_and_feature_matrices_library_learning(graph_index ,data_path :
             ret += ". "
         return "lesson composed of " + ret
     
-    from gensim.models import Word2Vec
-    from nltk.tokenize import word_tokenize
-    # FEATURE_VECTOR_DIMENSION = 10
     try:
         json_sentence = make_sentence(json_str.lower())
         tokens = word_tokenize(json_sentence)
-        print("THIS IS THE SENTENCE: ", json_sentence)
+        
         json_graph = json.loads(json_str.replace("'", "\""))
     except:
         # In case dataset has a NaN Error
         print(f"Caught NaN Error, returning random adjacency matrix in graph index {graph_index}")
         adjacency_matrix = np.random.randint(0, 2, (MAX_CONCEPT_HIERARCHY_SIZE, MAX_CONCEPT_HIERARCHY_SIZE))
-        feature_matrix = np.random.random((MAX_CONCEPT_HIERARCHY_SIZE, MAX_CONCEPT_HIERARCHY_SIZE))
-        return feature_matrix, adjacency_matrix
+        # feature_matrix = np.random.random((MAX_CONCEPT_HIERARCHY_SIZE, MAX_CONCEPT_HIERARCHY_SIZE))
+        feature_matrix = np.random.random((MAX_CONCEPT_HIERARCHY_SIZE, BERT_EMBEDDING_DIMENSION))
+        
+        # logging.info("USING IDENTITY FEATURE MATRIX")
+        # feature_matrix = np.eye(MAX_CONCEPT_HIERARCHY_SIZE)
+        
+        return adjacency_matrix, feature_matrix 
     # json_graph = json.load(open(os.path.join(data_path, "video_transcripts_with_hierarchy_1701550479.csv")))
 
-    model = Word2Vec([tokens], vector_size=MAX_CONCEPT_HIERARCHY_SIZE, window=5, min_count=1, workers=4)
+    # model = Word2Vec([tokens], vector_size=MAX_CONCEPT_HIERARCHY_SIZE, window=5, min_count=1, workers=4)
+
+    with open("BERT_embeddings_for_concepts_1702443584.pkl", 'rb') as file:
+        bert_embeddings_dict = pkl.load(file)
     # node_embedding = model.wv[token]
     def add_nodes_edges(graph, node, parent=None):
         # Assign a unique identifier to each node using id(node)
@@ -988,7 +1014,13 @@ def get_adjacency_and_feature_matrices_library_learning(graph_index ,data_path :
         
         # Add the current node to the graph
         if parent: graph.add_edge(parent, node_id)
-        graph.add_node(node_id, primary_concept=get_word_embedding(node["primary_concept"], model))
+        try:
+            graph.add_node(node_id, primary_concept=bert_embeddings_dict[standardize(node["primary_concept"])])
+        except:
+            logging.info(f"{standardize(node["primary_concept"])} not in BERT Embeddings")
+            logging.info("Returning random embedding")
+            graph.add_node(node_id, primary_concept=np.random.random(BERT_EMBEDDING_DIMENSION))
+        # graph.add_node(node_id, primary_concept=bert_embeddings_dict[standardize(node["primary_concept"])])
 
         # If there are supporting concepts, add them as leaf nodes
         for supporting_concept in node.get("supporting_concepts", []):
@@ -996,8 +1028,12 @@ def get_adjacency_and_feature_matrices_library_learning(graph_index ,data_path :
             supporting_id = f"{supporting_concept}_{id(node)}"
             # supporting_id = supporting_id[:-3]
             # supporting_id = f"{supporting_concept}_{node_num}"
-            
-            graph.add_node(supporting_id, primary_concept=get_word_embedding(supporting_concept, model))
+            try:
+                graph.add_node(supporting_id, primary_concept=bert_embeddings_dict[standardize(supporting_concept.replace("_", " "))])
+            except:
+                logging.info(f"{standardize(supporting_concept)} not in BERT Embeddings")
+                logging.info("Returning random embedding")
+                graph.add_node(supporting_id, primary_concept=np.random.random(BERT_EMBEDDING_DIMENSION))
             graph.add_edge(node_id, supporting_id)
 
         # If there are activities, recursively add them as sub-trees
@@ -1013,15 +1049,11 @@ def get_adjacency_and_feature_matrices_library_learning(graph_index ,data_path :
     # Add root node
     root_node_id = "lesson"
     root_primary_concept = "lesson"
-    G.add_node(root_node_id, primary_concept=model.wv[root_primary_concept])
+    # G.add_node(root_node_id, primary_concept=bert_embeddings_dict[root_primary_concept]) # NOTE: BERT not trained on "lesson" concept 
+    G.add_node(root_node_id, primary_concept=np.array([1] + [0 for i in range(BERT_EMBEDDING_DIMENSION - 1)]))
 
     for lesson in json_graph["lesson"]:
         add_nodes_edges(G, lesson, parent=root_node_id)
-
-    # Visualize the tree structure
-    # pos = nx.spring_layout(G)
-    # nx.draw(G, pos, with_labels=True, font_weight='bold', node_size=700, node_color='skyblue', font_size=8)
-    # plt.show()
 
     # # Convert the graph to an adjacency matrix
     adjacency_matrix = nx.adjacency_matrix(G).toarray()
@@ -1030,22 +1062,36 @@ def get_adjacency_and_feature_matrices_library_learning(graph_index ,data_path :
     # Size of the expanded matrix
     expanded_size = (MAX_CONCEPT_HIERARCHY_SIZE, MAX_CONCEPT_HIERARCHY_SIZE)
 
-    # Create an expanded matrix filled with zeros
-    expanded_matrix = np.zeros(expanded_size)
+    expanded_adj_matrix = np.zeros(expanded_size)
+    # expanded_adj_matrix = np.random.randint(0, 2, expanded_size)
+    # expanded_adj_matrix = (expanded_adj_matrix + expanded_adj_matrix.T) / 2
+    # expanded_adj_matrix = np.where(expanded_adj_matrix != 0, 1, 0)
 
-    # Copy the original matrix into the top-left corner of the expanded matrix
-    expanded_matrix[:len(symmetric_matrix), :len(symmetric_matrix)] = symmetric_matrix
+    # logging.info(f"RANDOMLY INITIALIZED ADJACENCY MATRIX: {expanded_adj_matrix}")
+    # INCLUDE SUPERNODE?
+    expanded_adj_matrix[:len(symmetric_matrix), :len(symmetric_matrix)] = symmetric_matrix
     feature_dict = nx.get_node_attributes(G, 'primary_concept')
     feature_matrix = np.array([feature_dict[node] for node in G.nodes()])
     # expanded_feature_matrix = np.zeros((MAX_CONCEPT_HIERARCHY_SIZE, FEATURE_VECTOR_DIMENSION))
-    expanded_feature_matrix = np.random.random(expanded_size)
+    expanded_feature_matrix = np.random.random((MAX_CONCEPT_HIERARCHY_SIZE, BERT_EMBEDDING_DIMENSION))
     
     expanded_feature_matrix[:len(feature_matrix), :len(feature_matrix[0])] = feature_matrix
-    expanded_feature_matrix = min_max_normalize(expanded_feature_matrix)
+    # expanded_feature_matrix = min_max_normalize(expanded_feature_matrix)
+
+    # from sklearn.decomposition import PCA
+    # # Create a PCA model for matrix factorization
+    # pca = PCA(n_components=MAX_CONCEPT_HIERARCHY_SIZE, svd_solver='full')
+
+    # reduced_matrix = pca.fit_transform(expanded_feature_matrix)
+
+    # print(reduced_matrix.shape)
     # print("MIN MAX NORMALIZING FEATURE MATRIX: ", expanded_feature_matrix)
-    import logging
-    logging.info("RANDOMLY INITIALIZED FEATURE MATRIX: ", expanded_feature_matrix)
-    return expanded_matrix, expanded_feature_matrix
+    # import logging
+    # logging.info("RANDOMLY INITIALIZED FEATURE MATRIX: ", expanded_feature_matrix)
+    # print(f"Returning Adjacency and Feature Matrices : {expanded_adj_matrix.shape} {expanded_feature_matrix.shape}")
+    # expanded_feature_matrix = np.eye(MAX_CONCEPT_HIERARCHY_SIZE)
+    logging.info(f"USING IDENTITY FEATURE MATRIX : {expanded_feature_matrix}")
+    return expanded_adj_matrix, expanded_feature_matrix
 
 
 def get_adjacency_matrix_cam_can(threshold : float, graph_index : int, data_path : str, use_super_node : bool = False) -> List[List[int]]:

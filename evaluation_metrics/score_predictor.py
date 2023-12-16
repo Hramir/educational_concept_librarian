@@ -6,7 +6,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import Ridge
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
 # import torch # TODO: Import torch if will be using Feed-Forward Neural Network 
 import numpy as np 
@@ -16,15 +16,37 @@ from tqdm import tqdm
 import numpy as np
 import os
 import pandas as pd
+import torch
+
+def to_poincare(x, c):
+    K = 1. / c
+    sqrtK = K ** 0.5
+    d = x.size(-1) - 1
+#     return sqrtK * x.narrow(-1, 1, d) / (x[:, 0:1] + sqrtK)
+    return sqrtK * x.narrow(-1, 1, d) / (x[0] + sqrtK)
+
+def norm(x, axis=None):
+    return np.linalg.norm(x, axis=axis)
+def poincare_dist(u, v, eps=1e-5):
+    d = 1 + 2 * norm(u-v)**2 / ((1 - norm(u)**2) * (1 - norm(v)**2) + eps)
+    return np.arccosh(d)
+
+
 BAR_WIDTH = 0.35
 NUM_FEATURES = 10 # TODO: Change to actual number of features depending on model feature dimensions
 NUM_FEATURES_WORD2VEC = 64 # TODO: Change to actual number of features depending on model feature dimensions
-TRANSCRIPT_DATA_PATH = 'video_transcripts_with_topics.csv'
-TOPIC_COLUMNS = ['topic_0', 'topic_1', 'topic_2', 'topic_3', 'topic_4', 'topic_5', 'topic_6', 'topic_7', 'topic_8', 'topic_9']
+# TRANSCRIPT_DATA_PATH = 'video_transcripts_with_hierarchy_mapped_truncated_conceptual_lda_1702443584.csv'
+# 'video_transcripts_with_hierarchy_mapped_bert_rarity_1702443584.csv'
+TRANSCRIPT_DATA_PATH = 'video_transcripts_with_hierarchy_mapped_truncated_1702443584.csv'
+TOPIC_COLUMNS = [f'topic_{i}' for i in range(10)]
+# TOPIC_COLUMNS = [f'primary_concept_topic_{i}' for i in range(10)] + [f'supporting_concept_topic_{i}' for i in range(10)] 
 TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = 0.70, 0.20, 0.10
 transcript_df = pd.read_csv(TRANSCRIPT_DATA_PATH)
 view_count_labels = transcript_df['view_count']
-score_labels = view_count_labels
+ratio_labels = transcript_df['like_to_view_ratio']
+sentiment_labels = transcript_df['average_sentiment']
+sentiment_labels = np.nan_to_num(sentiment_labels, 0.5)
+score_labels = ratio_labels
 
 class Regression_Model:
     def __init__(self, transcript_source : str, transcript_num : str, projection_type: str ="HR", dataset: str ="YouTube"):
@@ -46,7 +68,7 @@ class Regression_Model:
         projection_function = self.get_projection_function()
         projected_embeddings = [projection_function(embeddings) for embeddings in tqdm(embeddings_list)]
         np_projected_embeddings = np.array(projected_embeddings)
-        if self.projection_type != "HR": 
+        if self.projection_type != "HR" and self.projection_type != "ID": 
             projected_embeddings = np_projected_embeddings.reshape((len(np_projected_embeddings), self.num_features))
         return projected_embeddings
     # TODO: Figure out if should scale before or after projection
@@ -60,16 +82,28 @@ class Regression_Model:
     def get_projection_function(self):
         if self.projection_type == "HR": 
             def inner_product(u, v):
-                print("THIS IS V, ", v)
+                # print("THIS IS V, ", v)
                 return -u[0]*v[0] + np.dot(u[1:], v[1:]) 
             def get_hyperbolic_radius(embeddings):
                 origin = np.array([1, 0, 0]) # .to(self.args.device)
-                print("THIS IS EMBEDDINGS : ", embeddings)
-                return [np.arccosh(-1 * inner_product(origin, coord)) for coord in embeddings]
-            
+                # print("THIS IS EMBEDDINGS : ", embeddings)
+                return np.nan_to_num([np.arccosh(-1 * inner_product(origin, coord)) for coord in embeddings])
+            def get_poincare_radius(embeddings):
+                poincare_origin = torch.Tensor([0, 0])
+                torch_embeddings = torch.from_numpy(embeddings)
+                c = 1.0
+                poincare_embeddings = [to_poincare(torch_embedding, c) for torch_embedding in torch_embeddings]
+                
+                return [poincare_dist(poincare_embedding, poincare_origin) for poincare_embedding in poincare_embeddings]
+                # return np.nan_to_num([poincare_dist(poincare_embedding, poincare_origin) for poincare_embedding in poincare_embeddings])
+
             # def get_squared_radius(embeddings):
             #     return [coord[0] ** 2 + coord[1] ** 2 + coord[2] ** 2 for coord in embeddings]
+            print("Using Hyperbolioid Radius Projection Hyperboloid Radius")
             projection_function = get_hyperbolic_radius
+            
+            # print("Using Hyperbolic Radius Projection Poincare Radius")
+            # projection_function = get_poincare_radius
 
         elif self.projection_type == "TSNE": projection_function = TSNE(n_components=1, init='random', perplexity=3).fit_transform
         elif self.projection_type == "SVD": projection_function = TruncatedSVD(n_components=1).fit_transform
@@ -125,6 +159,7 @@ class Score_Predictor(Regression_Model):
             print("TRAIN INDICES", self.train_indices)
             from fhnn.utils.constants_utils import MAX_CONCEPT_HIERARCHY_SIZE
             self.num_features = MAX_CONCEPT_HIERARCHY_SIZE
+        if self.embeddings_method == "LDA": self.num_features = len(TOPIC_COLUMNS)
         self.dataset = dataset
         if type_of_regression == "linear":
             self.regressor_model = LinearRegression()
@@ -146,8 +181,8 @@ class Score_Predictor(Regression_Model):
             # self.regressor_model = RandomForestRegressor(n_estimators=500, random_state=42)
         
         elif type_of_regression == "neural_network":
-            input_size = NUM_FEATURES
-            hidden_size = NUM_FEATURES
+            input_size = MAX_CONCEPT_HIERARCHY_SIZE
+            hidden_size = MAX_CONCEPT_HIERARCHY_SIZE
             output_size = 1
             lr = 0.001
             self.regressor_model = Neural_Network_Regressor(input_size, hidden_size, output_size, learning_rate=lr)
@@ -179,15 +214,15 @@ class Score_Predictor(Regression_Model):
         return split_indices  
     def regression(self) -> float:
         self.train()
-        predicted_scores, mse_score, correlation = self.test()
+        predicted_scores, mae_score, mse_score, correlation = self.test()
         # self.plot_score_labels_vs_predicted_scores(predicted_scores)
         self.visualize_model_parameters(use_jet = False)
         # TODO: Uncomment this
         # self.plot_difference_between_predicted_and_labels(predicted_scores)
         self.plot_score_labels_vs_predicted_scores_curves(predicted_scores)
         self.plot_score_labels_directly_to_predicted_scores_curves(predicted_scores)
-        print(f"{self.model_str} Model with Projection {self.projection_type} Mean Squared Error (MSE):", mse_score)
-        return mse_score, correlation
+        print(f"{self.model_str} Model with Projection {self.projection_type} Mean Squared Error (MSE) {mse_score}, Mean Absolute Error (MAE) {mae_score}")
+        return mae_score, mse_score, correlation
     def visualize_model_parameters(self, use_jet=False):
         # plt.figure(figsize = (10, 10))
         if self.embeddings_method == "LDA":
@@ -391,8 +426,10 @@ class Score_Predictor(Regression_Model):
         #         mean_squared_error(predicted_scores, self.test_score_labels + self.val_score_labels), \
         #         np.corrcoef(predicted_scores, self.test_score_labels + self.val_score_labels)[0, 1]
         return predicted_scores, \
+                mean_absolute_error(predicted_scores, self.test_score_labels), \
                 mean_squared_error(predicted_scores, self.test_score_labels), \
                 np.corrcoef(predicted_scores, self.test_score_labels)[0, 1]
+                
 
     def get_embeddings_to_labels(self):
         embeddings = []
