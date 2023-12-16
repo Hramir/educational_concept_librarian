@@ -1,5 +1,8 @@
 import math
 import statistics
+import string
+from nltk.corpus import stopwords
+from nltk.stem.wordnet import WordNetLemmatizer
 
 
 def get_embedding(model, tokenizer, text):
@@ -9,6 +12,20 @@ def get_embedding(model, tokenizer, text):
 
 def standardize(concept):
   return concept.lower().replace("_", " ").replace(" = ", "=").replace(" x ", "x").replace(" + ", "+").replace("^", "")
+
+def lda_preprocess(text):
+    stop = set(stopwords.words('english'))
+    exclude = set(string.punctuation)
+    lemma = WordNetLemmatizer()
+    stop_free = " ".join([word for word in text.lower().split() if word not in stop])
+    punc_free = ''.join(ch for ch in stop_free if ch not in exclude)
+    normalized = " ".join(lemma.lemmatize(word) for word in punc_free.split())
+    return normalized
+
+# Function to get the topic distribution for a document
+def get_lda_topic_distribution(lda_model, bow):
+  topic_distribution = lda_model.get_document_topics(bow, minimum_probability=0)
+  return dict(topic_distribution)
 
 def count_concepts(json_data, pri_concepts=None, supp_concepts=None):
   """
